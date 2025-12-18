@@ -134,3 +134,5 @@ node_modules/
 
 /ui/.next/
 **/web_dist/**
+
+**/.DS_Store
