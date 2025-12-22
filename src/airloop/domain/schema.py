@@ -69,7 +69,8 @@ class _RoundStore:
     input_items: List[Dict[str,str]] = field(default_factory=list)
     messages: List[Dict[str,str]] = field(default_factory=list)
     events: List[Any] = field(default_factory=list)
-
+    trace_id: Optional[str] = None
+    guardrails: List[Any] = field(default_factory=list)
     
 
 @dataclass
@@ -89,6 +90,7 @@ class ConversationState:
     def update_round(
         self, 
         agent_name: str, 
+        trace_id: str,
         input_items: List[Dict[str,str]],
         messages: List[Dict[str,str]]=None,
         events: Optional[List[Any]]=None,
@@ -102,7 +104,7 @@ class ConversationState:
         self.round_store[self.round_counter].input_items = input_items
         self.round_store[self.round_counter].events.extend(events)
         self.round_store[self.round_counter].messages.extend(messages)
-    
+        self.round_store[self.round_counter].trace_id = trace_id
         
     def finish_round(self):
         self.round_counter += 1

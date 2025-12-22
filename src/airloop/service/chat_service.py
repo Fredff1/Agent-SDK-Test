@@ -9,6 +9,7 @@ from airloop.domain.schema import ConversationStore, ConversationState
 from airloop.domain.context import create_initial_context
 from airloop.service.mappers import extract_messages_events
 from airloop.agents.manager import AgentManager
+from airloop.service.observility_service import ObservabilityService
 
 
 ROLES_TO_SHOW = [
@@ -28,9 +29,10 @@ GUARD_RAIL_ROLES=[
 
 
 class ChatService:
-    def __init__(self, agent_mgr: AgentManager, store: ConversationStore):
+    def __init__(self, agent_mgr: AgentManager, store: ConversationStore, obs_service: ObservabilityService):
         self.agent_mgr = agent_mgr
         self.store = store
+        self.obs_service = obs_service
 
     def _init_state(self) -> tuple[str, ConversationState]:
         cid = uuid4().hex
@@ -56,7 +58,14 @@ class ChatService:
 
         agent = self.agent_mgr.get_agent_by_name(state.current_agent_name)
         state.input_items.append({"role": "user", "content": message})
-
+        round_id = state.round_counter
+        trace_id = self.obs_service.start_round_trace(
+            conversation_id=cid,
+            round_id=round_id,
+            user_message=message,
+            agent_name=agent.name,
+            context=state.context,
+        )
         try:
             result = await Runner.run(
                 agent,
@@ -68,6 +77,7 @@ class ChatService:
             refusal = "Sorry, I can only answer questions related to airline travel."
             state.update_round(
                 agent_name=state.current_agent_name,
+                trace_id=trace_id,
                 input_items=state.input_items,
                 events=[],
                 messages=[{"role": "assistant", "content": refusal}]
@@ -84,13 +94,23 @@ class ChatService:
                 "context": state.context,
                 "agents": self.agent_mgr.list_agents(filter=ROLES_TO_SHOW),
                 "guardrails": [],
-                "trace_id": uuid4().hex,
+                "trace_id": trace_id,
             }
 
         messages, events, next_agent_name = extract_messages_events(result)
+        
+        self.obs_service.log_round(
+            trace_id=trace_id,
+            messages=messages,
+            events=events,
+            next_agent=next_agent_name,
+            context=state.context,
+        )
+        
         state.update_round(
             agent_name=state.current_agent_name, 
             input_items=state.input_items,
+            trace_id=trace_id,
             events=events,
             messages=messages,
         )
@@ -107,5 +127,5 @@ class ChatService:
             "context": state.context,
             "agents": self.agent_mgr.list_agents(filter=ROLES_TO_SHOW),
             "guardrails": [self.agent_mgr.list_agents(filter=GUARD_RAIL_ROLES)],
-            "trace_id": uuid4().hex,
+            "trace_id": trace_id,
         }
