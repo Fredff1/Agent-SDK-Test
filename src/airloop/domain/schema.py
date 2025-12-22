@@ -64,25 +64,82 @@ class ChatResponse(BaseModel):
 # =====================================================================
 
 @dataclass
+class _RoundStore:
+    agent_name: str = ""
+    input_items: List[Dict[str,str]] = field(default_factory=list)
+    messages: List[Dict[str,str]] = field(default_factory=list)
+    events: List[Any] = field(default_factory=list)
+
+    
+
+@dataclass
 class ConversationState:
+    
     input_items: List[TInputItem] = field(default_factory=list)
     current_agent_name: str = ""
     context: Dict[str, Any] = field(default_factory=dict)
+    round_counter: int = 0
+    round_store: Dict[int, _RoundStore] = field(default_factory=dict)
+    
+    
+    def _ensure_round(self):
+        self.round_store[self.round_counter] = self.round_store.get(self.round_counter, _RoundStore() )
+	
+
+    def update_round(
+        self, 
+        agent_name: str, 
+        input_items: List[Dict[str,str]],
+        messages: List[Dict[str,str]]=None,
+        events: Optional[List[Any]]=None,
+    ):
+        if not events:
+            events = []
+        if not messages:
+            messages = []
+        self._ensure_round()
+        self.round_store[self.round_counter].agent_name = agent_name
+        self.round_store[self.round_counter].input_items = input_items
+        self.round_store[self.round_counter].events.extend(events)
+        self.round_store[self.round_counter].messages.extend(messages)
+    
+        
+    def finish_round(self):
+        self.round_counter += 1
+        self._ensure_round()
+        
+    @property
+    def messages(self):
+        msgs = []
+        for ri, store in self.round_store.items():
+            msgs.extend(store.messages)
+        return msgs
+	
+
+		
+            
 
 
 class ConversationStore:
-	def get(self, conversation_id: str) -> Optional[Dict[str, Any]]:
+	def get(self, conversation_id: str) -> Optional[ConversationState]:
 		pass
 
-	def save(self, conversation_id: str, state: Dict[str, Any]):
+	def save(self, conversation_id: str, state: ConversationState):
 		pass
 
 class InMemoryConversationStore(ConversationStore):
-#class InMemoryConversationStore():
-	_conversations: Dict[str, Dict[str, Any]] = {}
+	_conversations: Dict[str, ConversationState] = {}
 
-	def get(self, conversation_id: str) -> Optional[Dict[str, Any]]:
+	def get(self, conversation_id: str) -> Optional[ConversationState]:
 		return self._conversations.get(conversation_id)
 
-	def save(self, conversation_id: str, state: Dict[str, Any]):
+	def save(self, conversation_id: str, state: ConversationState):
 		self._conversations[conversation_id] = state
+  
+class PersistentConversationStore:
+    # TODO Implement persistent store
+	def get(self, conversation_id: str) -> Optional[ConversationState]:
+		pass
+
+	def save(self, conversation_id: str, state: ConversationState):
+		pass

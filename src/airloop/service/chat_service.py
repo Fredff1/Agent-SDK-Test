@@ -19,6 +19,11 @@ ROLES_TO_SHOW = [
     AgentRole.FLIGHT_STATUS,
 ]
 
+GUARD_RAIL_ROLES=[
+    AgentRole.GUARD_RELEVANCE,
+    AgentRole.GUARD_JAILBREAK
+]
+
 
 
 
@@ -33,7 +38,7 @@ class ChatService:
         state = ConversationState(
             input_items=[],
             current_agent_name=triage.name,
-            context=create_initial_context(),  # TODO: 你有 ctx 的话在这里 model_dump
+            context=create_initial_context(),  
         )
         self.store.save(cid, state)
         return cid, state
@@ -61,7 +66,15 @@ class ChatService:
             )
         except InputGuardrailTripwireTriggered:
             refusal = "Sorry, I can only answer questions related to airline travel."
+            state.update_round(
+                agent_name=state.current_agent_name,
+                input_items=state.input_items,
+                events=[],
+                messages=[{"role": "assistant", "content": refusal}]
+            )
+
             state.input_items.append({"role": "assistant", "content": refusal})
+            state.finish_round()
             self.store.save(cid, state)
             return {
                 "conversation_id": cid,
@@ -75,10 +88,15 @@ class ChatService:
             }
 
         messages, events, next_agent_name = extract_messages_events(result)
-
+        state.update_round(
+            agent_name=state.current_agent_name, 
+            input_items=state.input_items,
+            events=events,
+            messages=messages,
+        )
         state.input_items = result.to_input_list()
         state.current_agent_name = next_agent_name or state.current_agent_name
-
+        state.finish_round()
         self.store.save(cid, state)
 
         return {
@@ -88,6 +106,6 @@ class ChatService:
             "events": events,
             "context": state.context,
             "agents": self.agent_mgr.list_agents(filter=ROLES_TO_SHOW),
-            "guardrails": [],
+            "guardrails": [self.agent_mgr.list_agents(filter=GUARD_RAIL_ROLES)],
             "trace_id": uuid4().hex,
         }
