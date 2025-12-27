@@ -60,88 +60,99 @@ class ChatService:
         agent = self.agent_mgr.get_agent_by_name(state.current_agent_name)
         state.input_items.append({"role": "user", "content": message})
         round_id = state.round_counter
-        trace_id = self.obs_service.start_round_trace(
+        with self.obs_service.start_round_trace(
             conversation_id=cid,
             round_id=round_id,
             user_message=message,
             agent_name=agent.name,
             context=state.context,
-        )
-        try:
-            result = await Runner.run(
-                agent,
-                state.input_items,
-                context=state.context,
-                run_config=self.agent_mgr.run_config,
-            )
-        except InputGuardrailTripwireTriggered:
-            refusal = "Sorry, I can only answer questions related to airline travel."
-            state.update_round(
-                agent_name=state.current_agent_name,
-                trace_id=trace_id,
-                input_items=state.input_items,
-                events=[],
-                messages=[{"role": "assistant", "content": refusal}]
-            )
-            self.obs_service.log_guardrail_trip(trace_id=trace_id, reason="Input relevance guardrail triggered")
-            state.input_items.append({"role": "assistant", "content": refusal})
-            state.finish_round()
-            self.store.save(cid, state)
-            return {
-                "conversation_id": cid,
-                "current_agent": agent.name,
-                "messages": [{"content": refusal, "agent": agent.name}],
-                "events": [],
-                "context": state.context,
-                "agents": self.agent_mgr.list_agents(filter=ROLES_TO_SHOW),
-                "guardrails": [],
-                "trace_id": trace_id,
-            }
-        except Exception as exc:
-            logging.exception("ChatService run failed")
-            error_msg = "Sorry, something went wrong on our side. Please try again."
-            state.update_round(
-                agent_name=state.current_agent_name,
-                trace_id=trace_id,
-                input_items=state.input_items,
-                events=[],
-                messages=[{"role": "assistant", "content": error_msg}],
-            )
-            state.input_items.append({"role": "assistant", "content": error_msg})
-            state.finish_round()
-            self.store.save(cid, state)
-            return {
-                "conversation_id": cid,
-                "current_agent": state.current_agent_name,
-                "messages": [{"content": error_msg, "agent": agent.name}],
-                "events": [],
-                "context": state.context,
-                "agents": self.agent_mgr.list_agents(filter=ROLES_TO_SHOW),
-                "guardrails": [],
-                "trace_id": trace_id,
-            }
+        ) as trace_id:
 
-        messages, events, next_agent_name = extract_messages_events(result)
+            try:
+                result = await Runner.run(
+                    agent,
+                    state.input_items,
+                    context=state.context,
+                    run_config=self.agent_mgr.run_config,
+                )
+            except InputGuardrailTripwireTriggered:
+                refusal = "Sorry, I can only answer questions related to airline travel."
+                state.update_round(
+                    agent_name=state.current_agent_name,
+                    trace_id=trace_id,
+                    input_items=state.input_items,
+                    events=[],
+                    messages=[{"role": "assistant", "content": refusal}]
+                )
+                self.obs_service.log_guardrail_trip(trace_id=trace_id, reason="Input relevance guardrail triggered")
+                state.input_items.append({"role": "assistant", "content": refusal})
+                state.finish_round()
+                self.store.save(cid, state)
+                return {
+                    "conversation_id": cid,
+                    "current_agent": agent.name,
+                    "messages": [{"content": refusal, "agent": agent.name}],
+                    "events": [],
+                    "context": state.context,
+                    "agents": self.agent_mgr.list_agents(filter=ROLES_TO_SHOW),
+                    "guardrails": [],
+                    "trace_id": trace_id,
+                }
+            except Exception as exc:
+                logging.exception("ChatService run failed")
+                error_msg = "Sorry, something went wrong on our side. Please try again."
+                state.update_round(
+                    agent_name=state.current_agent_name,
+                    trace_id=trace_id,
+                    input_items=state.input_items,
+                    events=[],
+                    messages=[{"role": "assistant", "content": error_msg}],
+                )
+                state.input_items.append({"role": "assistant", "content": error_msg})
+                state.finish_round()
+                self.store.save(cid, state)
+                return {
+                    "conversation_id": cid,
+                    "current_agent": state.current_agent_name,
+                    "messages": [{"content": error_msg, "agent": agent.name}],
+                    "events": [],
+                    "context": state.context,
+                    "agents": self.agent_mgr.list_agents(filter=ROLES_TO_SHOW),
+                    "guardrails": [],
+                    "trace_id": trace_id,
+                }
+
+            messages, events, next_agent_name = extract_messages_events(result)
+            
+            self.obs_service.log_round(
+                conversation_id=cid,
+                trace_id=trace_id,
+                messages=messages,
+                events=events,
+                next_agent=next_agent_name,
+                context=state.context,
+                input_content=state.input_items,
+            )
+            
+            state.update_round(
+                agent_name=state.current_agent_name, 
+                input_items=state.input_items,
+                trace_id=trace_id,
+                events=events,
+                messages=messages,
+            )
+            state.input_items = result.to_input_list()
+            print(state.input_items)
+            state.current_agent_name = next_agent_name or state.current_agent_name
+            state.finish_round()
+            self.store.save(cid, state)
         
-        self.obs_service.log_round(
+        self.obs_service.score(
             trace_id=trace_id,
-            messages=messages,
-            events=events,
-            next_agent=next_agent_name,
-            context=state.context,
+            name=f"{trace_id}-score",
+            value=1,
+            comment="Test"
         )
-        
-        state.update_round(
-            agent_name=state.current_agent_name, 
-            input_items=state.input_items,
-            trace_id=trace_id,
-            events=events,
-            messages=messages,
-        )
-        state.input_items = result.to_input_list()
-        state.current_agent_name = next_agent_name or state.current_agent_name
-        state.finish_round()
-        self.store.save(cid, state)
 
         return {
             "conversation_id": cid,
