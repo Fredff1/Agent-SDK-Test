@@ -140,3 +140,5 @@ node_modules/
 !/config/default.yaml
 
 src/airloop-ui/.next/cache/** 
+src/airloop-ui/.next/static/webpack/** 
+src/airloop-ui/.next/static/chunks/** 
