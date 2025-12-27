@@ -150,13 +150,18 @@ class GuardrailManager:
     def _make_relevance_guardrail(self):
         @input_guardrail(name="Relevance Guardrail")
         async def _guard(context: RunContextWrapper[None], agent: Agent, input: str | list[TResponseInputItem]):
-            result = await Runner.run(
-                self.agents[AgentRole.GUARD_RELEVANCE],
-                input,
-                context=context.context,
-                run_config=self.run_config,
-            )
-            final = result.final_output_as(RelevanceOutput)
+            try:
+                result = await Runner.run(
+                    self.agents[AgentRole.GUARD_RELEVANCE],
+                    input,
+                    context=context.context,
+                    run_config=self.run_config,
+                )
+                final = result.final_output_as(RelevanceOutput)
+            except Exception as exc:
+                final = RelevanceOutput(reasoning=f"Guardrail parse failure: {exc}", is_relevant=False)
+                print(f"Error in guardrail: {exc}")
+                return GuardrailFunctionOutput(output_info=final, tripwire_triggered=True)
             return GuardrailFunctionOutput(output_info=final, tripwire_triggered=not final.is_relevant)
 
         return _guard
@@ -164,13 +169,19 @@ class GuardrailManager:
     def _make_jailbreak_guardrail(self):
         @input_guardrail(name="Jailbreak Guardrail")
         async def _guard(context: RunContextWrapper[None], agent: Agent, input: str | list[TResponseInputItem]):
-            result = await Runner.run(
-                self.agents[AgentRole.GUARD_JAILBREAK],
-                input,
-                context=context.context,
-                run_config=self.run_config,
-            )
-            final = result.final_output_as(JailbreakOutput)
+            try:
+                result = await Runner.run(
+                    self.agents[AgentRole.GUARD_JAILBREAK],
+                    input,
+                    context=context.context,
+                    run_config=self.run_config,
+                )
+                final = result.final_output_as(JailbreakOutput)
+            except Exception as exc:
+                print(f"Error in guardrail: {exc}")
+                final = JailbreakOutput(reasoning=f"Guardrail parse failure: {exc}", is_safe=False)
+                return GuardrailFunctionOutput(output_info=final, tripwire_triggered=True)
+
             return GuardrailFunctionOutput(output_info=final, tripwire_triggered=not final.is_safe)
 
         return _guard
@@ -178,5 +189,4 @@ class GuardrailManager:
 
 
     
-
 

@@ -20,7 +20,14 @@ export default function Home() {
   // Boot the conversation
   useEffect(() => {
     (async () => {
-      const data = await callChatAPI("", conversationId ?? "");
+      let data: any = null;
+      try {
+        data = await callChatAPI("", conversationId ?? "");
+      } catch (err) {
+        console.error("Failed to start conversation", err);
+        return;
+      }
+      if (!data) return;
       setConversationId(data.conversation_id);
       setCurrentAgent(data.current_agent);
       setContext(data.context);
@@ -57,7 +64,19 @@ export default function Home() {
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
 
-    const data = await callChatAPI(content, conversationId ?? "");
+    let data: any = null;
+    try {
+      data = await callChatAPI(content, conversationId ?? "");
+    } catch (err) {
+      console.error("Failed to send message", err);
+      setIsLoading(false);
+      return;
+    }
+
+    if (!data) {
+      setIsLoading(false);
+      return;
+    }
 
     if (!conversationId) setConversationId(data.conversation_id);
     setCurrentAgent(data.current_agent);

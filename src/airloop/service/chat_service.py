@@ -9,15 +9,16 @@ from airloop.domain.schema import ConversationStore, ConversationState
 from airloop.domain.context import create_initial_context
 from airloop.service.mappers import extract_messages_events
 from airloop.agents.manager import AgentManager
-from airloop.service.observility_service import ObservabilityService
+from airloop.service.observility_service import NoopObservabilityService, ObservabilityService
+import logging
 
 
 ROLES_TO_SHOW = [
     AgentRole.FLIGHT_CANCEL,
-    AgentRole.FLIGHT_CANCEL,
+    AgentRole.FLIGHT_STATUS,
     AgentRole.FAQ,
-    AgentRole.FLIGHT_STATUS,
-    AgentRole.FLIGHT_STATUS,
+    AgentRole.SEAT_BOOKING,
+    AgentRole.TRIAGE,
 ]
 
 GUARD_RAIL_ROLES=[
@@ -29,10 +30,10 @@ GUARD_RAIL_ROLES=[
 
 
 class ChatService:
-    def __init__(self, agent_mgr: AgentManager, store: ConversationStore, obs_service: ObservabilityService):
+    def __init__(self, agent_mgr: AgentManager, store: ConversationStore, obs_service: ObservabilityService | None = None):
         self.agent_mgr = agent_mgr
         self.store = store
-        self.obs_service = obs_service
+        self.obs_service = obs_service or NoopObservabilityService()
 
     def _init_state(self) -> tuple[str, ConversationState]:
         cid = uuid4().hex
@@ -82,7 +83,7 @@ class ChatService:
                 events=[],
                 messages=[{"role": "assistant", "content": refusal}]
             )
-
+            self.obs_service.log_guardrail_trip(trace_id=trace_id, reason="Input relevance guardrail triggered")
             state.input_items.append({"role": "assistant", "content": refusal})
             state.finish_round()
             self.store.save(cid, state)
@@ -90,6 +91,29 @@ class ChatService:
                 "conversation_id": cid,
                 "current_agent": agent.name,
                 "messages": [{"content": refusal, "agent": agent.name}],
+                "events": [],
+                "context": state.context,
+                "agents": self.agent_mgr.list_agents(filter=ROLES_TO_SHOW),
+                "guardrails": [],
+                "trace_id": trace_id,
+            }
+        except Exception as exc:
+            logging.exception("ChatService run failed")
+            error_msg = "Sorry, something went wrong on our side. Please try again."
+            state.update_round(
+                agent_name=state.current_agent_name,
+                trace_id=trace_id,
+                input_items=state.input_items,
+                events=[],
+                messages=[{"role": "assistant", "content": error_msg}],
+            )
+            state.input_items.append({"role": "assistant", "content": error_msg})
+            state.finish_round()
+            self.store.save(cid, state)
+            return {
+                "conversation_id": cid,
+                "current_agent": state.current_agent_name,
+                "messages": [{"content": error_msg, "agent": agent.name}],
                 "events": [],
                 "context": state.context,
                 "agents": self.agent_mgr.list_agents(filter=ROLES_TO_SHOW),

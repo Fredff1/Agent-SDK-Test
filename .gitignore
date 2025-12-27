@@ -136,3 +136,7 @@ node_modules/
 **/web_dist/**
 
 **/.DS_Store
+/config/*.yaml
+!/config/default.yaml
+
+src/airloop-ui/.next/cache/** 

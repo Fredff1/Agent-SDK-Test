@@ -1,0 +1,12 @@
+llm:
+  base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  api_key: sk-your-llm-key
+  model_name: qwen3-next-80b-a3b-instruct
+  output_streaming: false
+
+langfuse:
+  host: https://cloud.langfuse.com
+  public_key: pk-your-langfuse-public
+  secret_key: sk-your-langfuse-secret
+  release: dev
+  enabled: true

@@ -3,10 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 
-from airloop.settings import UserConfig
 from airloop.agents.manager import AgentManager
 from airloop.domain.schema import InMemoryConversationStore
 from airloop.service.chat_service import ChatService
+from airloop.settings import load_app_config
+from airloop.service.observility_service import LangfuseObservabilityService, NoopObservabilityService
 
 class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
@@ -23,14 +24,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    cfg = UserConfig(
-        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-        api_key="sk-f55837467fd543a49cfc5cecd003d788",
-        model_name="qwen3-next-80b-a3b-instruct",
-    )
-    agent_mgr = AgentManager(cfg)
+    cfg = load_app_config()
+    agent_mgr = AgentManager(cfg.llm)
     store = InMemoryConversationStore()
-    chat_svc = ChatService(agent_mgr, store)
+    obs_service = LangfuseObservabilityService(cfg.langfuse) if cfg.langfuse else NoopObservabilityService()
+    chat_svc = ChatService(agent_mgr, store, obs_service)
 
     @app.post("/api/chat")
     async def chat(req: ChatRequest):
