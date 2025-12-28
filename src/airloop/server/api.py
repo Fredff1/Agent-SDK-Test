@@ -38,8 +38,8 @@ def create_app() -> FastAPI:
     obs_service = LangfuseObservabilityService(cfg.langfuse) if cfg.langfuse else NoopObservabilityService()
     chat_svc = ChatService(agent_mgr, store, obs_service)
     feedback_svc = FeedbackService(obs_service)
-    offline_eval_svc = OfflineEvalService(chat_svc, agent_mgr, obs_service)
-    convo_eval_svc = ConversationEvalService(store, agent_mgr, obs_service)
+    offline_eval_svc = OfflineEvalService(chat_svc, agent_mgr, obs_service, cfg)
+    convo_eval_svc = ConversationEvalService(store, agent_mgr, obs_service, cfg)
 
     @app.post("/api/chat")
     async def chat(req: ChatRequest):
@@ -56,6 +56,19 @@ def create_app() -> FastAPI:
     @app.post("/api/conversation_eval")
     async def conversation_eval(req: ConversationEvalRequest):
         return await convo_eval_svc.evaluate_conversations(req)
+
+    @app.get("/api/sessions")
+    async def list_sessions(limit: int = 20):
+        states = store.list(limit=limit)
+        return [
+            {
+                "conversation_id": st.state_id,
+                "current_agent": st.current_agent_name,
+                "rounds": st.round_counter,
+                "context": st.context,
+            }
+            for st in states
+        ]
 
     return app
 

@@ -10,6 +10,9 @@ from airloop.agents.eval_agent import build_eval_agent, EvalScores
 from airloop.agents.manager import AgentManager
 from airloop.domain.schema import ConversationStore, ConversationState
 from airloop.service.observility_service import ObservabilityService
+from airloop.settings import AppConfig
+from openai import AsyncOpenAI
+from agents import OpenAIChatCompletionsModel
 
 
 class ConversationEvalRequest(BaseModel):
@@ -23,11 +26,19 @@ class ConversationEvalService:
     For each round, scores are written via ObservabilityService.score to the existing trace_id.
     """
 
-    def __init__(self, store: ConversationStore, agent_mgr: AgentManager, obs_service: ObservabilityService):
+    def __init__(self, store: ConversationStore, agent_mgr: AgentManager, obs_service: ObservabilityService, app_config: Optional[AppConfig] = None):
         self.store = store
         self.obs = obs_service
-        self.judge = build_eval_agent(agent_mgr.model)
+        self.judge = self._build_eval_agent(app_config, agent_mgr)
         self.run_config = agent_mgr.run_config
+
+    def _build_eval_agent(self, app_config: Optional[AppConfig], agent_mgr: AgentManager):
+        if app_config and app_config.eval_llm:
+            eval_cfg = app_config.eval_llm
+            client = AsyncOpenAI(base_url=eval_cfg.base_url, api_key=eval_cfg.api_key)
+            model = OpenAIChatCompletionsModel(model=eval_cfg.model_name, openai_client=client)
+            return build_eval_agent(model)
+        return build_eval_agent(agent_mgr.model)
 
     async def evaluate_conversations(self, req: ConversationEvalRequest) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = []
@@ -62,6 +73,13 @@ class ConversationEvalService:
                     run_config=self.run_config,
                 )
                 scores = judge_result.final_output_as(EvalScores)
+                eval_trace_id = self.obs.log_eval_trace(
+                    conversation_id=cid,
+                    agent_name="LLM Judge",
+                    context={"round": round_idx},
+                    eval_input=judge_input,
+                    eval_output=scores.model_dump(),
+                )
                 self._log_scores(trace_id, scores)
 
                 results.append(
@@ -69,6 +87,7 @@ class ConversationEvalService:
                         "conversation_id": cid,
                         "round": round_idx,
                         "trace_id": trace_id,
+                        "eval_trace_id": eval_trace_id,
                         "scores": scores.model_dump(),
                     }
                 )

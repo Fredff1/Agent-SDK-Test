@@ -48,20 +48,6 @@ PY
   resp=$(curl -s -X POST "${API_URL}/api/conversation_eval" \
     -H "Content-Type: application/json" \
     -d "${ids_json}")
-  RESP="${resp}" python - <<'PY'
-import json, os, sys
-data = os.environ["RESP"]
-start = data.find("{")
-if start == -1:
-    print(data)
-    sys.exit(1)
-try:
-    obj = json.loads(data[start:])
-    print(json.dumps(obj, ensure_ascii=False, indent=2))
-except Exception:
-    print(data)
-    raise
-PY
 else
   echo "Usage:"
   echo "  scripts/run_eval.sh offline"

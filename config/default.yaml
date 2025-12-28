@@ -15,3 +15,9 @@ langfuse:
 store:
   kind: sqlite
   path: data/conversations.db
+
+eval_llm:
+  base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  api_key: sk-your-llm-key
+  model_name: qwen3-next-80b-a3b-instruct
+  output_streaming: false

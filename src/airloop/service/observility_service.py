@@ -36,6 +36,17 @@ class ObservabilityService:
     def score(self, *, trace_id: str, name: str, value: float, comment: str | None = None, **kwargs) -> None:
         raise NotImplementedError
 
+    def log_eval_trace(
+        self,
+        *,
+        conversation_id: str,
+        agent_name: str,
+        context: Dict[str, Any],
+        eval_input: Any,
+        eval_output: Any,
+    ) -> str:
+        raise NotImplementedError
+
 
 class NoopObservabilityService(ObservabilityService):
     def __init__(self) -> None:
@@ -66,6 +77,19 @@ class NoopObservabilityService(ObservabilityService):
 
     def score(self, *, trace_id: str, name: str, value: float, comment: str | None = None, **kwargs) -> None:
         return None
+
+
+    def log_eval_trace(
+        self,
+        *,
+        conversation_id: str,
+        agent_name: str,
+        context: Dict[str, Any],
+        eval_input: Any,
+        eval_output: Any,
+    ) -> str:
+        trace_id = uuid4().hex
+        return trace_id
 
 
 class LangfuseObservabilityService(ObservabilityService):
@@ -279,3 +303,28 @@ class LangfuseObservabilityService(ObservabilityService):
             self.client.create_score(trace_id=trace_id, name=name, value=value, comment=comment)
         except Exception:
             traceback.print_exc()
+
+    def log_eval_trace(
+        self,
+        *,
+        conversation_id: str,
+        agent_name: str,
+        context: Dict[str, Any],
+        eval_input: Any,
+        eval_output: Any,
+    ) -> str:
+        trace_id = uuid4().hex
+        try:
+            with self.client.start_as_current_observation(
+                as_type="span",
+                name="local_evaluator",
+                trace_context={"trace_id": trace_id},
+            ) as obs:
+                obs.update(
+                    metadata={"conversation_id": conversation_id, "agent_name": agent_name},
+                    input={"eval_input": eval_input},
+                    output={"eval_output": eval_output},
+                )
+        except Exception:
+            traceback.print_exc()
+        return trace_id

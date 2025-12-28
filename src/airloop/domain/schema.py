@@ -145,6 +145,9 @@ class ConversationStore:
 	def save(self, conversation_id: str, state: ConversationState):
 		pass
 
+	def list(self, limit: int = 20) -> List[ConversationState]:
+		pass
+
 class InMemoryConversationStore(ConversationStore):
 	_conversations: Dict[str, ConversationState] = {}
 
@@ -153,6 +156,11 @@ class InMemoryConversationStore(ConversationStore):
 
 	def save(self, conversation_id: str, state: ConversationState):
 		self._conversations[conversation_id] = state
+
+	def list(self, limit: int = 20) -> List[ConversationState]:
+		all_states = list(self._conversations.values())
+		# In-memory: no timestamps, return as-is capped by limit
+		return all_states[:limit]
   
 class PersistentConversationStore:
     """
@@ -201,3 +209,20 @@ class PersistentConversationStore:
             (conversation_id, state_json),
         )
         self._conn.commit()
+
+    def list(self, limit: int = 20) -> List[ConversationState]:
+        rows = self._conn.execute(
+            "SELECT state_json FROM conversations ORDER BY rowid DESC LIMIT ?", (limit,)
+        ).fetchall()
+        states: List[ConversationState] = []
+        for (state_json,) in rows:
+            try:
+                data = json.loads(state_json)
+                if "round_store" in data and isinstance(data["round_store"], dict):
+                    data["round_store"] = {int(k): v for k, v in data["round_store"].items()}
+                st = ConversationState.model_validate(data)
+                st.bound_context()
+                states.append(st)
+            except Exception:
+                continue
+        return states

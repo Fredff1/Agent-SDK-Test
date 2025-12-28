@@ -28,3 +28,12 @@ export async function submitFeedback(traceId: string, score: number, comment?: s
 
   return res.json();
 }
+
+export async function fetchSessions(limit: number = 20) {
+  const res = await fetch(`/api/sessions?limit=${limit}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Sessions API error: ${res.status} ${text}`);
+  }
+  return res.json();
+}

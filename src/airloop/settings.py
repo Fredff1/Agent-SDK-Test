@@ -36,6 +36,7 @@ class AppConfig:
     llm: UserConfig
     langfuse: Optional[LangfuseConfig] = None
     store: StoreConfig = None
+    eval_llm: Optional[UserConfig] = None
 
 
 def _to_bool(value: Any, default: Optional[bool] = None) -> Optional[bool]:
@@ -79,6 +80,7 @@ def load_app_config(config_path: Optional[str] = None) -> AppConfig:
 
     langfuse_cfg = raw_cfg.get("langfuse", {})
     store_cfg = raw_cfg.get("store", {})
+    eval_cfg = raw_cfg.get("eval_llm", {})
     langfuse_enabled = _to_bool(os.getenv("LANGFUSE_ENABLED", langfuse_cfg.get("enabled")), default=None)
     langfuse_host = os.getenv("LANGFUSE_HOST", langfuse_cfg.get("host"))
     langfuse_public_key = os.getenv("LANGFUSE_PUBLIC_KEY", langfuse_cfg.get("public_key"))
@@ -105,5 +107,19 @@ def load_app_config(config_path: Optional[str] = None) -> AppConfig:
         path=os.getenv("STORE_PATH", store_cfg.get("path", "data/conversations.db")),
     )
 
-    return AppConfig(llm=llm, langfuse=langfuse, store=store)
+    # eval llm (optional, fallback to main llm)
+    eval_base_url = os.getenv("EVAL_LLM_BASE_URL", eval_cfg.get("base_url", base_url))
+    eval_api_key = os.getenv("EVAL_LLM_API_KEY", eval_cfg.get("api_key", api_key))
+    eval_model_name = os.getenv("EVAL_LLM_MODEL_NAME", eval_cfg.get("model_name", model_name))
+    eval_output_streaming = _to_bool(os.getenv("EVAL_LLM_OUTPUT_STREAMING", eval_cfg.get("output_streaming")), default=output_streaming)
+    eval_llm = None
+    if eval_base_url and eval_api_key and eval_model_name:
+        eval_llm = UserConfig(
+            base_url=eval_base_url,
+            api_key=eval_api_key,
+            model_name=eval_model_name,
+            output_streaming=bool(eval_output_streaming),
+        )
+
+    return AppConfig(llm=llm, langfuse=langfuse, store=store, eval_llm=eval_llm)
     

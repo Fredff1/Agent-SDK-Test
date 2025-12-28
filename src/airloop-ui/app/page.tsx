@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { AgentPanel } from "@/components/agent-panel";
 import { Chat } from "@/components/Chat";
 import type { Agent, AgentEvent, GuardrailCheck, Message } from "@/lib/types";
-import { callChatAPI, submitFeedback } from "@/lib/api";
+import { callChatAPI, submitFeedback, fetchSessions } from "@/lib/api";
 
 type Session = {
   id: string;
@@ -49,30 +49,57 @@ export default function Home() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessionCounter, setSessionCounter] = useState(1);
 
-  // Load sessions from localStorage on first mount
+  // Load sessions from API (persistent store) first; fallback to localStorage
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("airloop_sessions_v1");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const storedSessions: Session[] = (parsed.sessions || []).map((s: Session) => ({
-          ...s,
-          isLoading: false,
-        }));
-        if (storedSessions.length > 0) {
-          setSessions(storedSessions);
-          setActiveSessionId(parsed.activeSessionId || storedSessions[0].id);
-          setSessionCounter(parsed.sessionCounter || storedSessions.length);
+    (async () => {
+      try {
+        const apiSessions = await fetchSessions(50);
+        if (Array.isArray(apiSessions) && apiSessions.length > 0) {
+          const restored: Session[] = apiSessions.map((s: any, idx: number) => ({
+            id: s.conversation_id || `session-${idx}`,
+            title: s.conversation_id || `Session ${idx + 1}`,
+            conversationId: s.conversation_id || null,
+            messages: [],
+            events: [],
+            agents: [],
+            currentAgent: s.current_agent || "",
+            guardrails: [],
+            context: s.context || {},
+            isLoading: false,
+            initialized: true,
+          }));
+          setSessions(restored);
+          setActiveSessionId(restored[0].id);
+          setSessionCounter(restored.length);
           return;
         }
+      } catch (err) {
+        console.error("Failed to load sessions from API", err);
       }
-    } catch (err) {
-      console.error("Failed to load sessions from storage", err);
-    }
-    const first = createSession("Session 1");
-    setSessions([first]);
-    setActiveSessionId(first.id);
-    setSessionCounter(1);
+
+      try {
+        const raw = localStorage.getItem("airloop_sessions_v1");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const storedSessions: Session[] = (parsed.sessions || []).map((s: Session) => ({
+            ...s,
+            isLoading: false,
+          }));
+          if (storedSessions.length > 0) {
+            setSessions(storedSessions);
+            setActiveSessionId(parsed.activeSessionId || storedSessions[0].id);
+            setSessionCounter(parsed.sessionCounter || storedSessions.length);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load sessions from storage", err);
+      }
+      const first = createSession("Session 1");
+      setSessions([first]);
+      setActiveSessionId(first.id);
+      setSessionCounter(1);
+    })();
   }, []);
 
   // Persist sessions to localStorage

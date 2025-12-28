@@ -162,7 +162,7 @@ class ChatService:
             state.input_items = result.to_input_list()
             
             state.current_agent_name = next_agent_name or state.current_agent_name
-            print(state.input_items)
+            # print(state.input_items)
             state.finish_round()
             if persist:
                 self.store.save(cid, state)

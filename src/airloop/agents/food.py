@@ -34,7 +34,7 @@ def get_food_agent(
         #model="gpt-4.1",
         model=model,  #changed to qwen model， useless when only one model for all agents
         
-        handoff_description="A helpful agent that can answer questions about the airline.",
+        handoff_description="A helpful agent that can answer questions about the food supplies and order foods.",
         instructions=food_instructions,
         tools=[order_food],
         input_guardrails=[guardrail_mgr.jailbreak_guardrail],
