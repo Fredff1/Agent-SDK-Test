@@ -13,3 +13,27 @@ export async function callChatAPI(message: string, conversationId: string) {
 
   return res.json();
 }
+
+export async function submitFeedback(traceId: string, score: number, comment?: string) {
+  const res = await fetch("/api/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ trace_id: traceId, score, comment }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Feedback API error: ${res.status} ${text}`);
+  }
+
+  return res.json();
+}
+
+export async function fetchSessions(limit: number = 20) {
+  const res = await fetch(`/api/sessions?limit=${limit}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Sessions API error: ${res.status} ${text}`);
+  }
+  return res.json();
+}

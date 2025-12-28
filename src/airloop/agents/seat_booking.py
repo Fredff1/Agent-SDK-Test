@@ -59,9 +59,9 @@ def get_seat_booking_agent(
         #model="gpt-4.1",
         model=model,  #changed to qwen model, useless when only one model for all agents
         
-        handoff_description="A helpful agent that can update a seat on a flight.",
+        handoff_description="A helpful agent that can help book or update a seat on a flight.",
         instructions=seat_booking_instructions,
         tools=[update_seat, display_seat_map],
-        input_guardrails=[guardrail_mgr.relevance_guardrail, guardrail_mgr.jailbreak_guardrail],
+        input_guardrails=[guardrail_mgr.jailbreak_guardrail],
     )
     return seat_booking_agent

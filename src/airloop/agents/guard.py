@@ -1,4 +1,6 @@
-from typing import Dict, List
+from typing import Dict, List, Any
+from uuid import uuid4
+import time
 
 from pydantic import BaseModel
 from agents import (
@@ -13,20 +15,47 @@ from agents import (
 )
 
 from airloop.agents.role import AgentRole
+from airloop.domain.context import AirlineAgentContext
+
+RELEVANCE_NAME = "Relevance Guardrail"
+JAILBREAK_NAME = "Jailbreak Guardrail"
+
+
+def _extract_last_user_text(raw: Any) -> str:
+    """
+    Try to pull the latest user message content from the input to make guardrails
+    less sensitive to preceding assistant messages.
+    """
+    if isinstance(raw, str):
+        return raw
+    if isinstance(raw, list):
+        for item in reversed(raw):
+            if isinstance(item, dict):
+                if item.get("role") == "user" and item.get("content"):
+                    return str(item.get("content"))
+            else:
+                role = getattr(item, "role", None)
+                content = getattr(item, "content", None)
+                if role == "user" and content:
+                    return str(content)
+        return str(raw)
+    return str(raw)
 
 
 RELEVANCE_GUARDRAIL_PROMPT = f"""
 You are a strict relevance guardrail for an airline customer service assistant.
 
 Your task:
-- Evaluate ONLY the most recent user message.
+- Evaluate ONLY the most recent user message, but use brief prior context to understand pronouns/follow-ups.
 - Determine whether the message is reasonably related to airline customer service topics.
+- If the message is relevantly short (for example, a single word), treat it as relevant since it might be the answer to previous conversations.
 
 Airline-related topics include (but are not limited to):
 - Flights, booking, cancellation, rescheduling
 - Seats, baggage, check-in, boarding
 - Flight status, delays, refunds
 - Loyalty programs, policies, customer support
+- In-flight meals, menu inquiries, dietary preferences, food ordering or feedback.
 - Simple conversational messages like "Hi", "OK", or "Thanks" are considered relevant
 
 Non-relevant examples:
@@ -137,10 +166,26 @@ class GuardrailManager:
     ):  
         self.agents: Dict[AgentRole, Agent] = dict()
         self.run_config = run_config
+        self._last_guardrail_checks: List[Dict] = []
         self._init_agents(agents)
         
         self.relevance_guardrail = self._make_relevance_guardrail()
         self.jailbreak_guardrail = self._make_jailbreak_guardrail()
+
+    def _record_check(self, *, name: str, input_value: str, reasoning: str, passed: bool):
+        self._last_guardrail_checks.append({
+            "id": uuid4().hex,
+            "name": name,
+            "input": input_value,
+            "reasoning": reasoning,
+            "passed": passed,
+            "timestamp": time.time() * 1000,
+        })
+
+    def pop_guardrail_checks(self) -> List[Dict]:
+        checks = self._last_guardrail_checks[:]
+        self._last_guardrail_checks.clear()
+        return checks
         
         
     def _init_agents(self, agents: List[Agent]):
@@ -149,7 +194,8 @@ class GuardrailManager:
         
     def _make_relevance_guardrail(self):
         @input_guardrail(name="Relevance Guardrail")
-        async def _guard(context: RunContextWrapper[None], agent: Agent, input: str | list[TResponseInputItem]):
+        async def _guard(context: RunContextWrapper[AirlineAgentContext], agent: Agent, input: str | list[TResponseInputItem]):
+            input_str = _extract_last_user_text(input)
             try:
                 result = await Runner.run(
                     self.agents[AgentRole.GUARD_RELEVANCE],
@@ -160,8 +206,9 @@ class GuardrailManager:
                 final = result.final_output_as(RelevanceOutput)
             except Exception as exc:
                 final = RelevanceOutput(reasoning=f"Guardrail parse failure: {exc}", is_relevant=False)
-                print(f"Error in guardrail: {exc}")
+                self._record_check(name=RELEVANCE_NAME, input_value=input_str, reasoning=final.reasoning, passed=False)
                 return GuardrailFunctionOutput(output_info=final, tripwire_triggered=True)
+            self._record_check(name=RELEVANCE_NAME, input_value=input_str, reasoning=final.reasoning, passed=final.is_relevant)
             return GuardrailFunctionOutput(output_info=final, tripwire_triggered=not final.is_relevant)
 
         return _guard
@@ -169,6 +216,7 @@ class GuardrailManager:
     def _make_jailbreak_guardrail(self):
         @input_guardrail(name="Jailbreak Guardrail")
         async def _guard(context: RunContextWrapper[None], agent: Agent, input: str | list[TResponseInputItem]):
+            input_str = _extract_last_user_text(input)
             try:
                 result = await Runner.run(
                     self.agents[AgentRole.GUARD_JAILBREAK],
@@ -178,10 +226,11 @@ class GuardrailManager:
                 )
                 final = result.final_output_as(JailbreakOutput)
             except Exception as exc:
-                print(f"Error in guardrail: {exc}")
                 final = JailbreakOutput(reasoning=f"Guardrail parse failure: {exc}", is_safe=False)
+                self._record_check(name=JAILBREAK_NAME, input_value=input_str, reasoning=final.reasoning, passed=False)
                 return GuardrailFunctionOutput(output_info=final, tripwire_triggered=True)
 
+            self._record_check(name=JAILBREAK_NAME, input_value=input_str, reasoning=final.reasoning, passed=final.is_safe)
             return GuardrailFunctionOutput(output_info=final, tripwire_triggered=not final.is_safe)
 
         return _guard
@@ -189,4 +238,3 @@ class GuardrailManager:
 
 
     
-

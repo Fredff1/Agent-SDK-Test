@@ -1,7 +1,14 @@
+from __future__ import annotations
 import random
+import json
+import os
+import sqlite3
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from pydantic import BaseModel
+# from airloop.domain.context import AirlineAgentContext
+
+
 
 TInputItem = Dict[str, Any]
 
@@ -63,25 +70,34 @@ class ChatResponse(BaseModel):
 # and agent orchestration (workflow), Commented by HCI2025
 # =====================================================================
 
-@dataclass
-class _RoundStore:
+
+class _RoundStore(BaseModel):
     agent_name: str = ""
-    input_items: List[Dict[str,str]] = field(default_factory=list)
-    messages: List[Dict[str,str]] = field(default_factory=list)
+    input_items: List[Dict[str, Any]] = field(default_factory=list)
+    messages: List[Dict[str, Any]] = field(default_factory=list)
     events: List[Any] = field(default_factory=list)
     trace_id: Optional[str] = None
     guardrails: List[Any] = field(default_factory=list)
     
 
-@dataclass
-class ConversationState:
-    
+class ConversationState(BaseModel):
+
+    state_id: str
     input_items: List[TInputItem] = field(default_factory=list)
     current_agent_name: str = ""
-    context: Dict[str, Any] = field(default_factory=dict)
+    context: Any = None
     round_counter: int = 0
     round_store: Dict[int, _RoundStore] = field(default_factory=dict)
     
+    def bound_context(self):
+        # If context is a plain dict, attempt to rebuild AirlineAgentContext
+        try:
+            from airloop.domain.context import AirlineAgentContext
+            if isinstance(self.context, dict):
+                self.context = AirlineAgentContext.model_validate(self.context)
+        except Exception:
+            # leave as-is if validation fails
+            return
     
     def _ensure_round(self):
         self.round_store[self.round_counter] = self.round_store.get(self.round_counter, _RoundStore() )
@@ -91,8 +107,8 @@ class ConversationState:
         self, 
         agent_name: str, 
         trace_id: str,
-        input_items: List[Dict[str,str]],
-        messages: List[Dict[str,str]]=None,
+        input_items: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]]=None,
         events: Optional[List[Any]]=None,
     ):
         if not events:
@@ -129,6 +145,9 @@ class ConversationStore:
 	def save(self, conversation_id: str, state: ConversationState):
 		pass
 
+	def list(self, limit: int = 20) -> List[ConversationState]:
+		pass
+
 class InMemoryConversationStore(ConversationStore):
 	_conversations: Dict[str, ConversationState] = {}
 
@@ -137,11 +156,73 @@ class InMemoryConversationStore(ConversationStore):
 
 	def save(self, conversation_id: str, state: ConversationState):
 		self._conversations[conversation_id] = state
+
+	def list(self, limit: int = 20) -> List[ConversationState]:
+		all_states = list(self._conversations.values())
+		# In-memory: no timestamps, return as-is capped by limit
+		return all_states[:limit]
   
 class PersistentConversationStore:
-    # TODO Implement persistent store
-	def get(self, conversation_id: str) -> Optional[ConversationState]:
-		pass
+    """
+    Simple sqlite-backed conversation store. Serializes ConversationState as JSON.
+    """
+    def __init__(self, db_path: str = "data/conversations.db"):
+        self.db_path = db_path
+        dir_name = os.path.dirname(db_path) or "."
+        os.makedirs(dir_name, exist_ok=True)
+        # Keep a shared connection (important for :memory:)
+        self._conn = sqlite3.connect(self.db_path, check_same_thread=False, uri=self.db_path.startswith("file:"))
+        self._ensure_schema()
 
-	def save(self, conversation_id: str, state: ConversationState):
-		pass
+    def _ensure_schema(self):
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS conversations (
+                id TEXT PRIMARY KEY,
+                state_json TEXT NOT NULL
+            )
+            """
+        )
+        self._conn.commit()
+
+    def get(self, conversation_id: str) -> Optional[ConversationState]:
+        cur = self._conn.execute("SELECT state_json FROM conversations WHERE id = ?", (conversation_id,))
+        row = cur.fetchone()
+        if not row:
+            return None
+        data = json.loads(row[0])
+        if "round_store" in data and isinstance(data["round_store"], dict):
+            data["round_store"] = {int(k): v for k, v in data["round_store"].items()}
+        try:
+            state = ConversationState.model_validate(data)
+            state.bound_context()
+            return state
+        except Exception as e:
+            print(e)
+            return None
+
+    def save(self, conversation_id: str, state: ConversationState):
+        payload = state.model_dump(mode="json")
+        state_json = json.dumps(payload)
+        self._conn.execute(
+            "INSERT OR REPLACE INTO conversations (id, state_json) VALUES (?, ?)",
+            (conversation_id, state_json),
+        )
+        self._conn.commit()
+
+    def list(self, limit: int = 20) -> List[ConversationState]:
+        rows = self._conn.execute(
+            "SELECT state_json FROM conversations ORDER BY rowid DESC LIMIT ?", (limit,)
+        ).fetchall()
+        states: List[ConversationState] = []
+        for (state_json,) in rows:
+            try:
+                data = json.loads(state_json)
+                if "round_store" in data and isinstance(data["round_store"], dict):
+                    data["round_store"] = {int(k): v for k, v in data["round_store"].items()}
+                st = ConversationState.model_validate(data)
+                st.bound_context()
+                states.append(st)
+            except Exception:
+                continue
+        return states

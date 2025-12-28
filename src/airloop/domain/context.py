@@ -1,6 +1,12 @@
 import random
-
+from typing import Optional
 from pydantic import BaseModel
+
+from airloop.domain.schema import ConversationState
+
+NAMES = [
+    "Mike", "Amy", "Fred", "Cinderella", "Alice", "Bob"
+]
 
 class AirlineAgentContext(BaseModel):
     """Context for airline customer service agents."""
@@ -9,6 +15,11 @@ class AirlineAgentContext(BaseModel):
     seat_number: str | None = None
     flight_number: str | None = None
     account_number: str | None = None  # Account number associated with the customer
+    meal_preference: str | None = None  # e.g., vegetarian, gluten-free
+    meal_selection: str | None = None  # last ordered meal
+    available_meals: list[str] = []
+    
+    conversation_state: Optional[ConversationState] = None
 
 def create_initial_context() -> AirlineAgentContext:
     """
@@ -18,4 +29,6 @@ def create_initial_context() -> AirlineAgentContext:
     """
     ctx = AirlineAgentContext()
     ctx.account_number = str(random.randint(10000000, 99999999))
+    ctx.passenger_name = random.choice(NAMES)
+    ctx.available_meals = ["Chicken set", "Beef set", "Vegetarian set"]
     return ctx

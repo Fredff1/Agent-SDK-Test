@@ -15,6 +15,8 @@ export function Guardrails({ guardrails, inputGuardrails }: GuardrailsProps) {
   const guardrailNameMap: Record<string, string> = {
     relevance_guardrail: "Relevance Guardrail",
     jailbreak_guardrail: "Jailbreak Guardrail",
+    "Relevance Guardrail": "Relevance Guardrail",
+    "Jailbreak Guardrail": "Jailbreak Guardrail",
   };
 
   const guardrailDescriptionMap: Record<string, string> = {
@@ -26,7 +28,9 @@ export function Guardrails({ guardrails, inputGuardrails }: GuardrailsProps) {
   const extractGuardrailName = (rawName: string): string =>
     guardrailNameMap[rawName] ?? rawName;
 
-  const guardrailsToShow: GuardrailCheck[] = inputGuardrails.map((rawName) => {
+  const uniqueInputs = Array.from(new Set(inputGuardrails));
+
+  const guardrailsToShow: GuardrailCheck[] = uniqueInputs.map((rawName) => {
     const existing = guardrails.find((gr) => gr.name === rawName);
     if (existing) {
       return existing;

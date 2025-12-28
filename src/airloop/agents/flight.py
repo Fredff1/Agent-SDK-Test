@@ -80,7 +80,7 @@ def get_flight_status_agent(
         handoff_description="An agent to provide flight status information.",
         instructions=flight_status_instructions,
         tools=[flight_status_tool],
-        input_guardrails=[guardrail_mgr.jailbreak_guardrail, guardrail_mgr.jailbreak_guardrail],
+        input_guardrails=[guardrail_mgr.jailbreak_guardrail],
     )
     return flight_status_agent
 
@@ -96,6 +96,6 @@ def get_flight_cancel_agent(
         handoff_description="An agent to cancel flights.",
         instructions=cancellation_instructions,
         tools=[cancel_flight],
-        input_guardrails=[guardrail_mgr.jailbreak_guardrail, guardrail_mgr.jailbreak_guardrail],
+        input_guardrails=[guardrail_mgr.jailbreak_guardrail],
     )
     return cancellation_agent

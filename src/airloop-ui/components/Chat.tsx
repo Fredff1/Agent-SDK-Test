@@ -4,20 +4,23 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import type { Message } from "@/lib/types";
 import ReactMarkdown from "react-markdown";
 import { SeatMap } from "./seat-map";
+import { StarRating } from "./star-rating";
 
 interface ChatProps {
   messages: Message[];
   onSendMessage: (message: string) => void;
   /** Whether waiting for assistant response */
   isLoading?: boolean;
+  onFeedback?: (traceId: string, score: number) => void;
 }
 
-export function Chat({ messages, onSendMessage, isLoading }: ChatProps) {
+export function Chat({ messages, onSendMessage, isLoading, onFeedback }: ChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [inputText, setInputText] = useState("");
   const [isComposing, setIsComposing] = useState(false);
   const [showSeatMap, setShowSeatMap] = useState(false);
   const [selectedSeat, setSelectedSeat] = useState<string | undefined>(undefined);
+  const [ratingOpenId, setRatingOpenId] = useState<string | null>(null);
 
   // Auto-scroll to bottom when messages or loading indicator change
   useEffect(() => {
@@ -69,23 +72,51 @@ export function Chat({ messages, onSendMessage, isLoading }: ChatProps) {
       </div>
       {/* Messages */}
       <div className="flex-1 overflow-y-auto min-h-0 md:px-4 pt-4 pb-20">
-        {messages.map((msg, idx) => {
+        {messages.map((msg) => {
           if (msg.content === "DISPLAY_SEAT_MAP") return null; // Skip rendering marker message
           return (
-            <div
-              key={idx}
-              className={`flex mb-5 text-sm ${msg.role === "user" ? "justify-end" : "justify-start"
-                }`}
-            >
-              {msg.role === "user" ? (
-                <div className="ml-4 rounded-[16px] rounded-br-[4px] px-4 py-2 md:ml-24 bg-black text-white font-light max-w-[80%]">
+            <div key={msg.id} className={`mb-6 flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className="max-w-[80%] flex flex-col gap-2">
+                <div
+                  className={`rounded-[16px] px-4 py-2 text-sm font-light ${
+                    msg.role === "user"
+                      ? "bg-black text-white rounded-br-[4px] md:ml-12"
+                      : "bg-[#ECECF1] text-zinc-900 rounded-bl-[4px] md:mr-12"
+                  }`}
+                >
                   <ReactMarkdown>{msg.content}</ReactMarkdown>
                 </div>
-              ) : (
-                <div className="mr-4 rounded-[16px] rounded-bl-[4px] px-4 py-2 md:mr-24 text-zinc-900 bg-[#ECECF1] font-light max-w-[80%]">
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
-                </div>
-              )}
+                {msg.role === "assistant" && msg.traceId && (
+                  <>
+                    <button
+                      type="button"
+                      className="self-start text-xs text-blue-600 hover:text-blue-700 bg-blue-50 px-2 py-1 rounded-full border border-blue-200 shadow-sm transition-all hover:shadow"
+                      onClick={() =>
+                        setRatingOpenId((prev) => (prev === msg.id ? null : msg.id))
+                      }
+                    >
+                      Rate response
+                    </button>
+                    {ratingOpenId === msg.id && (
+                      <div className="self-start rounded-2xl border border-gray-200 bg-white shadow-sm px-4 py-3">
+                        <StarRating
+                          traceId={msg.traceId}
+                          onFeedback={onFeedback}
+                          showToggle={false}
+                          onClose={() => setRatingOpenId(null)}
+                        />
+                        <button
+                          type="button"
+                          className="mt-2 text-xs text-gray-500 hover:text-gray-700 underline"
+                          onClick={() => setRatingOpenId(null)}
+                        >
+                          Close
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           );
         })}
