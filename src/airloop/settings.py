@@ -21,12 +21,21 @@ class LangfuseConfig:
     secret_key: str
     release: Optional[str] = None
     enabled: bool = True
+    evaluator_name: Optional[str] = None
+    auto_eval_name: Optional[str] = None
+
+
+@dataclass
+class StoreConfig:
+    kind: str = "sqlite"  # "sqlite" | "memory"
+    path: str = "data/conversations.db"
 
 
 @dataclass
 class AppConfig:
     llm: UserConfig
     langfuse: Optional[LangfuseConfig] = None
+    store: StoreConfig = None
 
 
 def _to_bool(value: Any, default: Optional[bool] = None) -> Optional[bool]:
@@ -69,11 +78,13 @@ def load_app_config(config_path: Optional[str] = None) -> AppConfig:
     )
 
     langfuse_cfg = raw_cfg.get("langfuse", {})
+    store_cfg = raw_cfg.get("store", {})
     langfuse_enabled = _to_bool(os.getenv("LANGFUSE_ENABLED", langfuse_cfg.get("enabled")), default=None)
     langfuse_host = os.getenv("LANGFUSE_HOST", langfuse_cfg.get("host"))
     langfuse_public_key = os.getenv("LANGFUSE_PUBLIC_KEY", langfuse_cfg.get("public_key"))
     langfuse_secret_key = os.getenv("LANGFUSE_SECRET_KEY", langfuse_cfg.get("secret_key"))
     langfuse_release = os.getenv("LANGFUSE_RELEASE", langfuse_cfg.get("release"))
+    langfuse_evaluator = os.getenv("LANGFUSE_EVALUATOR_NAME", langfuse_cfg.get("evaluator_name"))
 
     langfuse = None
     has_langfuse_keys = all([langfuse_host, langfuse_public_key, langfuse_secret_key])
@@ -86,7 +97,13 @@ def load_app_config(config_path: Optional[str] = None) -> AppConfig:
             secret_key=langfuse_secret_key,  # type: ignore[arg-type]
             release=langfuse_release,
             enabled=True,
+            evaluator_name=langfuse_evaluator,
         )
 
-    return AppConfig(llm=llm, langfuse=langfuse)
+    store = StoreConfig(
+        kind=os.getenv("STORE_KIND", store_cfg.get("kind", "sqlite")),
+        path=os.getenv("STORE_PATH", store_cfg.get("path", "data/conversations.db")),
+    )
+
+    return AppConfig(llm=llm, langfuse=langfuse, store=store)
     

@@ -11,10 +11,15 @@ interface ConversationContextProps {
     seat_number?: string;
     flight_number?: string;
     account_number?: string;
+    meal_selection?: string | null;
   };
 }
 
 export function ConversationContext({ context }: ConversationContextProps) {
+  const filteredEntries = Object.entries(context).filter(
+    ([key, value]) => key !== "available_meals" && key !== "meal_preference" && key != "conversation_state"
+  );
+
   return (
     <PanelSection
       title="Conversation Context"
@@ -23,7 +28,7 @@ export function ConversationContext({ context }: ConversationContextProps) {
       <Card className="bg-gradient-to-r from-white to-gray-50 border-gray-200 shadow-sm">
         <CardContent className="p-3">
           <div className="grid grid-cols-2 gap-2">
-            {Object.entries(context).map(([key, value]) => (
+            {filteredEntries.map(([key, value]) => (
               <div
                 key={key}
                 className="flex items-center gap-2 bg-white p-2 rounded-md border border-gray-200 shadow-sm transition-all"

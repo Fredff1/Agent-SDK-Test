@@ -3,6 +3,7 @@ export interface Message {
   content: string
   role: "user" | "assistant"
   agent?: string
+  traceId?: string
   timestamp: Date
 }
 
@@ -43,4 +44,3 @@ export interface GuardrailCheck {
   passed: boolean
   timestamp: Date
 }
-

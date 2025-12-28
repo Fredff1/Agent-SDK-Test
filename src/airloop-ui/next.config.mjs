@@ -8,6 +8,10 @@ const nextConfig = {
         source: "/api/chat",
         destination: "http://127.0.0.1:8000/api/chat",
       },
+      {
+        source: "/api/feedback",
+        destination: "http://127.0.0.1:8000/api/feedback",
+      },
     ];
   },
 };

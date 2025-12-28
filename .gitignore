@@ -142,3 +142,6 @@ node_modules/
 src/airloop-ui/.next/cache/** 
 src/airloop-ui/.next/static/webpack/** 
 src/airloop-ui/.next/static/chunks/** 
+
+# local data (sqlite)
+data/

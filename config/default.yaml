@@ -10,3 +10,8 @@ langfuse:
   secret_key: sk-your-langfuse-secret
   release: dev
   enabled: true
+  evaluator_name: null
+
+store:
+  kind: sqlite
+  path: data/conversations.db

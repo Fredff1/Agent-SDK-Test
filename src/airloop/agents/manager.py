@@ -21,14 +21,17 @@ from airloop.agents.faq import get_faq_agent
 from airloop.agents.flight import get_flight_status_agent, get_flight_cancel_agent, on_cancellation_handoff
 from airloop.agents.seat_booking import get_seat_booking_agent, on_seat_booking_handoff
 from airloop.agents.triage import get_triage_agent
+from airloop.agents.food import get_food_agent
 from airloop.provider.qwen import QwenModelProvider, build_qwen3_run_config
 from airloop.settings import UserConfig
+from pydantic import BaseModel
 
 HANDOFF_ROLES = [ 
     AgentRole.FLIGHT_CANCEL,
     AgentRole.FLIGHT_STATUS,
     AgentRole.SEAT_BOOKING,
     AgentRole.FAQ,
+    AgentRole.FOOD,
 ]
 
 HANDOFF_HANDLERS = {
@@ -126,11 +129,13 @@ class AgentManager:
         self.add_agent(AgentRole.FLIGHT_STATUS, get_flight_status_agent(self.model, self.guardrail_manager))
         self.add_agent(AgentRole.FLIGHT_CANCEL, get_flight_cancel_agent(self.model, self.guardrail_manager))
         self.add_agent(AgentRole.FAQ, get_faq_agent(self.model, self.guardrail_manager))
+        self.add_agent(AgentRole.FOOD, get_food_agent(self.model, self.guardrail_manager))
 
         handoffs = self._build_handoff()
         self.add_agent(AgentRole.TRIAGE, get_triage_agent(model=self.model, guardrail_mgr=self.guardrail_manager, handoffs=handoffs))
         for role in HANDOFF_ROLES:
             self.get_agent_by_role(role).handoffs.append(self.agents[AgentRole.TRIAGE])
+    
     
     def _build_handoff(self):
         handoffs = []

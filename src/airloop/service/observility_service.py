@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional, List, Iterator
 from uuid import uuid4
 from contextlib import contextmanager
 import traceback
+import time
 
 from langfuse import Langfuse, get_client, LangfuseSpan
 
@@ -19,7 +20,7 @@ class ObservabilityService:
         *,
         conversation_id: str,
         round_id: int,
-        user_message: str,
+        input_messages: str,
         agent_name: str,
         context: Dict[str, Any],
         **kwargs,
@@ -46,7 +47,7 @@ class NoopObservabilityService(ObservabilityService):
         *,
         conversation_id: str,
         round_id: int,
-        user_message: str,
+        input_messages: str,
         agent_name: str,
         context: Dict[str, Any],
         **kwargs
@@ -86,7 +87,7 @@ class LangfuseObservabilityService(ObservabilityService):
         *,
         conversation_id: str,
         round_id: int,
-        user_message: str,
+        input_messages: str,
         agent_name: str,
         context: Dict[str, Any],
         **kwargs,
@@ -106,9 +107,8 @@ class LangfuseObservabilityService(ObservabilityService):
                         "conversation_id": conversation_id,
                         "round_id": round_id,
                         "agent_name": agent_name,
-                        "context": context,
+                        "begin_context": context,
                     },
-                    input={"user_message": user_message},
                 )
 
                 # ✅ 这里继续保留你原先的 dctx / root_span_id / root_obj
@@ -160,6 +160,8 @@ class LangfuseObservabilityService(ObservabilityService):
                         name=name,
                         # trace_context={"trace_id": trace_id, "parent_span_id": root_span_id},
                     ) as sp:
+                        e["observation_id"]=sp.id
+                        e["langfuse_type"] = "span"
                         sp.update(
                             input={
                                 "input_messages": input_content,
@@ -185,6 +187,8 @@ class LangfuseObservabilityService(ObservabilityService):
                         name="assistant_message",
                         # trace_context={"trace_id": trace_id, "parent_span_id": root_span_id},
                     ) as gen:
+                        e["observation_id"]=gen.id
+                        e["langfuse_type"] = "gen"
                         gen.update(
                             # 你这里没有 model/prompt，就先别填 model
                             input={
@@ -208,28 +212,25 @@ class LangfuseObservabilityService(ObservabilityService):
                         name="event:other",
                         # trace_context={"trace_id": trace_id, "parent_span_id": root_span_id},
                     ) as sp:
+                        e["observation_id"]=sp.id
+                        e["langfuse_type"] = "span"
                         sp.update(
                             input={"raw_event": e},
                             metadata={"timestamp_ms": e.get("timestamp"),"conversation_id":conversation_id,},
                         )
+                time.sleep(0.05)
 
             # 2) 整轮汇总：单独放一个 span，方便 UI 一眼看全
-            with self.client.start_as_current_observation(
-                as_type="span",
-                name="round_summary",
-                # trace_context={"trace_id": trace_id, "parent_span_id": root_span_id},
-            ) as summary:
-                summary.update(
-                    input={
-                        "input_messages": input_content,
-                    },
-                    output={
-                        "messages": messages,
-                        "events": events,
-                        "next_agent": next_agent,
-                    },
-                    metadata={"context": context, "conversation_id":conversation_id,},
-                )
+            # with self.client.start_as_current_observation(
+            #     as_type="span",
+            #     name="round_summary",
+            #     # trace_context={"trace_id": trace_id, "parent_span_id": root_span_id},
+            # ) as summary:
+            root.update(
+                input=input_content,
+                output=messages,
+                metadata={"after_context": context, "next_agent": next_agent,"events": events},
+            )
 
         except Exception as e:
             # 不要完全吞：至少可以在本地 log 一下
@@ -251,17 +252,18 @@ class LangfuseObservabilityService(ObservabilityService):
             ) as sp:
                 sp.update(metadata={"reason": reason})
 
-            # v3 的 score 一般是 “current trace/span” 的概念：需要进入上下文
-            with self.client.start_as_current_observation(
-                as_type="span",
-                name="guardrail_score_ctx",
-                # trace_context={"trace_id": trace_id, "parent_span_id": root_span_id},
-            ):
-                self.client.score_current_trace(name="guardrail_trip", value=0.0, comment=reason)
+            # # v3 的 score 一般是 “current trace/span” 的概念：需要进入上下文
+            # with self.client.start_as_current_observation(
+            #     as_type="span",
+            #     name="guardrail_score_ctx",
+            #     # trace_context={"trace_id": trace_id, "parent_span_id": root_span_id},
+            # ):
+            #     self.client.score_current_trace(name="guardrail_trip", value=0.0, comment=reason)
 
         except Exception:
             traceback.print_exc()
             return
+
 
 
     def score(

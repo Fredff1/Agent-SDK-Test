@@ -8,6 +8,7 @@ class AgentRole(Enum):
     FLIGHT_STATUS = auto()
     FLIGHT_CANCEL = auto()
     SEAT_BOOKING = auto()
+    FOOD = auto()
 
     
     
