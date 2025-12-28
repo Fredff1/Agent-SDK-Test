@@ -143,5 +143,8 @@ src/airloop-ui/.next/cache/**
 src/airloop-ui/.next/static/webpack/** 
 src/airloop-ui/.next/static/chunks/** 
 
+src/airloop-ui/.next/trace
+src/airloop-ui/.next/app-build-manifest.json
+
 # local data (sqlite)
 data/
