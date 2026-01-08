@@ -3,14 +3,7 @@ from typing import Dict, List
 
 from pydantic import BaseModel
 from agents import (
-    Agent,
-    RunContextWrapper,
-    Runner,
-    TResponseInputItem,
-    function_tool,
-    handoff,
-    GuardrailFunctionOutput,
-    input_guardrail,
+    Agent
 )
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 
@@ -27,8 +20,7 @@ def get_faq_agent(
 
     faq_agent = Agent[AirlineAgentContext](
         name="FAQ Agent",
-        #model="gpt-4.1",
-        model=model,  #changed to qwen model， useless when only one model for all agents
+        model=model, 
         
         handoff_description="A helpful agent that can answer questions about the airline.",
         instructions=f"""{RECOMMENDED_PROMPT_PREFIX}

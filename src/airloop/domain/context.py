@@ -14,9 +14,9 @@ class AirlineAgentContext(BaseModel):
     confirmation_number: str | None = None
     seat_number: str | None = None
     flight_number: str | None = None
-    account_number: str | None = None  # Account number associated with the customer
-    meal_preference: str | None = None  # e.g., vegetarian, gluten-free
-    meal_selection: str | None = None  # last ordered meal
+    account_number: str | None = None 
+    meal_preference: str | None = None  
+    meal_selection: str | None = None
     available_meals: list[str] = []
     
     conversation_state: Optional[ConversationState] = None

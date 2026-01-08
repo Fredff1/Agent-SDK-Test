@@ -56,8 +56,7 @@ def get_seat_booking_agent(
 ):
     seat_booking_agent = Agent[AirlineAgentContext](
         name="Seat Booking Agent",
-        #model="gpt-4.1",
-        model=model,  #changed to qwen model, useless when only one model for all agents
+        model=model,
         
         handoff_description="A helpful agent that can help book or update a seat on a flight.",
         instructions=seat_booking_instructions,

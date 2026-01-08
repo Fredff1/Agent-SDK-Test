@@ -31,9 +31,7 @@ def get_food_agent(
 
     food_agent = Agent[AirlineAgentContext](
         name="Food Agent",
-        #model="gpt-4.1",
-        model=model,  #changed to qwen model， useless when only one model for all agents
-        
+        model=model, 
         handoff_description="A helpful agent that can answer questions about the food supplies and order foods.",
         instructions=food_instructions,
         tools=[order_food],

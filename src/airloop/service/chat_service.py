@@ -62,10 +62,6 @@ class ChatService:
         return await self._chat_with_state(state, message, persist=True)
 
     async def chat_with_state(self, state: ConversationState, message: str, persist: bool = False) -> Dict[str, Any]:
-        """
-        Allow running chat flow against a provided ConversationState (for offline eval).
-        When persist=False, state is not saved back to the store.
-        """
         return await self._chat_with_state(state, message, persist=persist)
     
     async def _chat_with_state(self, state: ConversationState, message: str, persist: bool = True) -> Dict[str, Any]:

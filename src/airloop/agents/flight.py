@@ -7,12 +7,6 @@ from pydantic import BaseModel
 from agents import (
     Agent,
     RunContextWrapper,
-    Runner,
-    TResponseInputItem,
-    function_tool,
-    handoff,
-    GuardrailFunctionOutput,
-    input_guardrail,
 )
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 
@@ -90,8 +84,7 @@ def get_flight_cancel_agent(
 ):
     cancellation_agent = Agent[AirlineAgentContext](
         name="Cancellation Agent",
-        #model="gpt-4.1",
-        model=model,  ##changed to qwen model， useless when only one model for all agents
+        model=model,
         
         handoff_description="An agent to cancel flights.",
         instructions=cancellation_instructions,
