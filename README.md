@@ -11,6 +11,8 @@ A customer service multi-agent demo built on the [OpenAI Agents SDK](https://ope
 
 ![Demo Screenshot](screenshot.jpg)
 
+Chinese README: [README_zh.md](README_zh.md)
+
 ## Environment Setup
 
 ### Requirements
