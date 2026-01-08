@@ -57,6 +57,54 @@ class OfflineEvalService:
                 context={"flight_number": "ABC123"},
             ),
             EvalCase(
+                name="flight_status_missing_info",
+                user_message="What's the status of my flight?",
+                expected="Ask for the flight number and/or confirmation number.",
+                history=[
+                    {"role": "assistant", "content": "Hi there! How can I help with your trip today?"},
+                    {"role": "user", "content": "I need to check on my flight."},
+                ],
+            ),
+            EvalCase(
+                name="seat_change_request",
+                user_message="I want to change my seat to 12A.",
+                expected="Confirm details and update the seat using the seat tool.",
+                context={"confirmation_number": "ZX81QK"},
+                history=[
+                    {"role": "assistant", "content": "I can help with seat changes. Do you know your desired seat?"},
+                    {"role": "user", "content": "Yes, I want 12A."},
+                ],
+            ),
+            EvalCase(
+                name="seat_map_request",
+                user_message="Can you show me the seat map?",
+                expected="Call the seat map tool to display the seat map.",
+                context={"confirmation_number": "ZX81QK"},
+                history=[
+                    {"role": "assistant", "content": "Sure, I can show you a seat map."},
+                    {"role": "user", "content": "Please show me the seat map."},
+                ],
+            ),
+            EvalCase(
+                name="cancel_with_details",
+                user_message="Please cancel my flight.",
+                expected="Confirm cancellation details and call the cancel tool.",
+                context={"confirmation_number": "LL0EZ6", "flight_number": "FLT-476"},
+                history=[
+                    {"role": "assistant", "content": "I can help with cancellations."},
+                    {"role": "user", "content": "I need to cancel a booking."},
+                ],
+            ),
+            EvalCase(
+                name="cancel_missing_info",
+                user_message="I need to cancel my flight.",
+                expected="Ask for confirmation number and flight number before cancelling.",
+                history=[
+                    {"role": "assistant", "content": "I can help cancel your flight."},
+                    {"role": "user", "content": "Thanks, please cancel it."},
+                ],
+            ),
+            EvalCase(
                 name="food_order",
                 user_message="I'd like to order a vegetarian meal.",
                 expected="Confirm vegetarian meal and place the order.",
@@ -67,11 +115,53 @@ class OfflineEvalService:
                 ],
             ),
             EvalCase(
-                name="faq_refund",
-                user_message="What is your refund policy for delayed flights?",
-                expected="Summarize refund policy for delays.",
+                name="food_menu",
+                user_message="What meals are available?",
+                expected="List available meals and ask for a preference.",
+                history=[
+                    {"role": "assistant", "content": "I can help with meal requests."},
+                    {"role": "user", "content": "I want to see the meal options."},
+                ],
+            ),
+            EvalCase(
+                name="food_invalid_meal",
+                user_message="I want the fish set.",
+                expected="Explain the meal is not available and list available meals.",
+                context={"available_meals": ["Chicken set", "Beef set", "Vegetarian set"]},
+                history=[
+                    {"role": "assistant", "content": "We have a few meal options available."},
+                    {"role": "user", "content": "Great, I'd like to order."},
+                ],
+            ),
+            EvalCase(
+                name="faq_baggage",
+                user_message="What is the baggage allowance?",
+                expected="Provide baggage policy from the FAQ tool.",
+                history=[
+                    {"role": "assistant", "content": "Happy to answer general questions."},
+                    {"role": "user", "content": "I have a question about bags."},
+                ],
+            ),
+            EvalCase(
+                name="faq_wifi",
+                user_message="Do you have wifi on the plane?",
+                expected="Provide wifi information from the FAQ tool.",
+                history=[
+                    {"role": "assistant", "content": "I can answer FAQs about your flight."},
+                    {"role": "user", "content": "Quick question about onboard services."},
+                ],
+            ),
+            EvalCase(
+                name="faq_seat_count",
+                user_message="How many seats are on this plane?",
+                expected="Provide seat count and cabin layout from the FAQ tool.",
+                history=[
+                    {"role": "assistant", "content": "I can help with aircraft details."},
+                    {"role": "user", "content": "Can you tell me about the plane?"},
+                ],
             ),
         ]
+
 
     def _build_eval_agent(self, app_config: Optional[AppConfig], agent_mgr: AgentManager):
         if app_config and app_config.eval_llm:
