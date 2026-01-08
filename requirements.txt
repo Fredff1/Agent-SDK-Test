@@ -1,0 +1,11 @@
+fastapi>=0.124.4
+uvicorn>=0.38.0
+pydantic>=2.12.4
+dotenv>=1.0.1
+pyyaml>=6.0.0
+
+langfuse>=3.10.6
+openai-agents>=0.6.3
+openinference-instrumentation-openai-agents>=1.4.0
+
+nest-asyncio>=1.6.0
