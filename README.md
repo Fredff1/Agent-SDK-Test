@@ -9,7 +9,7 @@ A customer service multi-agent demo built on the [OpenAI Agents SDK](https://ope
 1. FastAPI backend for agent orchestration and tools.
 2. Next.js frontend for visualization and chat.
 
-![Demo Screenshot](screenshot.jpg)
+![Demo Screenshot](image.png)
 
 Chinese README: [README_zh.md](README_zh.md)
 
