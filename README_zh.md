@@ -9,7 +9,8 @@
 1. FastAPI 后端：负责 Agent 编排与工具调用。
 2. Next.js 前端：提供可视化编排与对话界面。
 
-![Demo Screenshot](screenshot.jpg)
+![Demo Screenshot](image.jpg)
+
 
 ## 环境准备
 
