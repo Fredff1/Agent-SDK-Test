@@ -35,6 +35,7 @@ type Order = {
   flight_number: string;
   seat_number: number;
   meal_selection?: string | null;
+  status?: string;
 };
 
 const createSession = (title: string, order: Order): Session => ({
@@ -52,6 +53,7 @@ const createSession = (title: string, order: Order): Session => ({
     confirmation_number: order.confirmation_number,
     flight_number: order.flight_number,
     seat_number: String(order.seat_number),
+    order_status: order.status ?? "active",
   },
   isLoading: false,
   initialized: false,
@@ -70,6 +72,10 @@ const normalizeGuardrails = (raw: any[]): GuardrailCheck[] =>
 export default function Home() {
   const router = useRouter();
   const [userId, setUserId] = useState<number | null>(null);
+  const [userProfile, setUserProfile] = useState<{
+    username: string;
+    account_number?: string;
+  } | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessionCounter, setSessionCounter] = useState(1);
@@ -79,6 +85,12 @@ export default function Home() {
   const [isOrdersLoading, setIsOrdersLoading] = useState(false);
   const [orderError, setOrderError] = useState("");
   const [isOrderPickerOpen, setIsOrderPickerOpen] = useState(false);
+  const sessionsStorageKey = userId ? `airloop_sessions_v1_${userId}` : "airloop_sessions_v1";
+
+  const getOrderStatus = (orderId: number | null) => {
+    if (orderId == null) return undefined;
+    return orders.find((item) => item.id === orderId)?.status;
+  };
 
   useEffect(() => {
     const raw = localStorage.getItem("airloop_user");
@@ -90,6 +102,10 @@ export default function Home() {
       const parsed = JSON.parse(raw);
       if (typeof parsed?.id === "number") {
         setUserId(parsed.id);
+        setUserProfile({
+          username: parsed.username ?? "User",
+          account_number: parsed.account_number ?? undefined,
+        });
         setIsAuthChecked(true);
         return;
       }
@@ -118,6 +134,24 @@ export default function Home() {
     if (userId == null) return;
     loadOrders(userId);
   }, [userId]);
+
+  useEffect(() => {
+    if (orders.length === 0) return;
+    setSessions((prev) =>
+      prev.map((session) => {
+        if (!session.orderId) return session;
+        const status = getOrderStatus(session.orderId);
+        if (!status || session.context?.order_status === status) return session;
+        return {
+          ...session,
+          context: {
+            ...session.context,
+            order_status: status,
+          },
+        };
+      })
+    );
+  }, [orders]);
 
   // Load sessions from API (persistent store) first; fallback to localStorage
   useEffect(() => {
@@ -155,7 +189,10 @@ export default function Home() {
             agents: Array.isArray(s.agents) ? s.agents : [],
             currentAgent: s.current_agent || "",
             guardrails: normalizeGuardrails(s.guardrails || []),
-            context: s.context || {},
+            context: {
+              ...(s.context || {}),
+              order_status: getOrderStatus(s.context?.order_id ?? null),
+            },
             isLoading: false,
             initialized: true,
           }));
@@ -169,7 +206,8 @@ export default function Home() {
       }
 
       try {
-        const raw = localStorage.getItem("airloop_sessions_v1");
+        if (userId == null) return;
+        const raw = localStorage.getItem(sessionsStorageKey);
         if (raw) {
           const parsed = JSON.parse(raw);
           const storedSessions: Session[] = (parsed.sessions || []).map((s: Session) => ({
@@ -197,7 +235,7 @@ export default function Home() {
     if (sessions.length === 0) return;
     try {
       localStorage.setItem(
-        "airloop_sessions_v1",
+        sessionsStorageKey,
         JSON.stringify({
           sessions,
           activeSessionId,
@@ -301,6 +339,11 @@ export default function Home() {
   const handleSendMessage = async (content: string) => {
     const session = sessions.find((s) => s.id === activeSessionId);
     if (!session) return;
+    const status = session.context?.order_status ?? getOrderStatus(session.orderId);
+    if (status === "canceled") {
+      setOrderError("This session's order is canceled.");
+      return;
+    }
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -433,7 +476,25 @@ export default function Home() {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("airloop_user");
+    if (userId != null) {
+      localStorage.removeItem(`airloop_sessions_v1_${userId}`);
+    }
+    setSessions([]);
+    setActiveSessionId(null);
+    setSessionCounter(0);
+    setOrders([]);
+    setUserId(null);
+    setUserProfile(null);
+    router.replace("/login");
+  };
+
   const handleSelectOrderForSession = (order: Order) => {
+    if (order.status === "canceled") {
+      setOrderError("This order is canceled and cannot be used.");
+      return;
+    }
     const next = sessionCounter + 1;
     const newSession = createSession(`Order ${order.confirmation_number}`, order);
     setSessionCounter(next);
@@ -506,12 +567,25 @@ export default function Home() {
               <div className="truncate text-sm font-semibold text-slate-800">
                 {activeSession?.title || "Session"}
               </div>
+              {userProfile && (
+                <div className="truncate text-xs text-slate-500">
+                  {userProfile.username}
+                  {userProfile.account_number ? ` · ${userProfile.account_number}` : ""}
+                </div>
+              )}
             </div>
             {activeSession?.conversationId && (
               <span className="hidden whitespace-nowrap rounded-full border border-border-subtle bg-white/80 px-3 py-1 text-xs font-medium text-slate-500 sm:inline-flex">
                 ID: {activeSession.conversationId}
               </span>
             )}
+            <button
+              type="button"
+              className="rounded-full border border-border-subtle px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600 transition-colors duration-200 hover:border-brand/40 hover:text-slate-900"
+              onClick={handleLogout}
+            >
+              Logout
+            </button>
           </div>
           {activeSession ? (
             <Chat

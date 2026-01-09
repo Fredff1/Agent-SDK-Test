@@ -10,6 +10,7 @@ type Order = {
   flight_number: string;
   seat_number: number;
   meal_selection?: string | null;
+  status?: string;
 };
 
 interface OrderPanelProps {
@@ -61,13 +62,28 @@ export function OrderPanel({
             <div className="text-xs text-slate-500">No orders yet.</div>
           ) : (
             <div className="space-y-2">
-              {orders.map((order) => (
+              {orders.map((order) => {
+                const isCanceled = order.status === "canceled";
+                return (
                 <div
                   key={order.id}
-                  className="rounded-lg border border-border-subtle bg-white/90 p-2 text-xs text-slate-700"
+                  className={`rounded-lg border border-border-subtle bg-white/90 p-2 text-xs text-slate-700 ${
+                    isCanceled ? "opacity-50" : ""
+                  }`}
                 >
-                  <div className="font-semibold text-slate-800">
-                    {order.confirmation_number}
+                  <div className="flex items-center gap-2">
+                    <div className="font-semibold text-slate-800">
+                      {order.confirmation_number}
+                    </div>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                        isCanceled
+                          ? "bg-red-100 text-red-600"
+                          : "bg-emerald-100 text-emerald-700"
+                      }`}
+                    >
+                      {isCanceled ? "Canceled" : "Active"}
+                    </span>
                   </div>
                   <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-slate-500">
                     <span>Flight: {order.flight_number}</span>
@@ -75,7 +91,8 @@ export function OrderPanel({
                     {order.meal_selection && <span>Meal: {order.meal_selection}</span>}
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           )}
         </CardContent>

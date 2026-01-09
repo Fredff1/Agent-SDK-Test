@@ -67,6 +67,8 @@ def create_app() -> FastAPI:
             order_info = data_svc.get_order(req.order_id, req.user_id)
             if not order_info:
                 raise HTTPException(status_code=404, detail="Order not found")
+            if order_info.get("status") == "canceled":
+                raise HTTPException(status_code=410, detail="Order is canceled")
         if req.conversation_id is None and req.order_id is None:
             raise HTTPException(status_code=400, detail="order_id required for new session")
         return await chat_svc.chat(

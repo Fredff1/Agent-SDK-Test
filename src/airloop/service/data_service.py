@@ -36,6 +36,7 @@ class DataService:
                 confirmation_number TEXT,
                 seat_number INTEGER NOT NULL,
                 meal_selection TEXT,
+                status TEXT NOT NULL DEFAULT 'active',
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 FOREIGN KEY(user_id) REFERENCES users(id),
                 FOREIGN KEY(flight_id) REFERENCES flights(id)
@@ -47,6 +48,8 @@ class DataService:
             conn.execute("ALTER TABLE orders ADD COLUMN confirmation_number TEXT")
         if "meal_selection" not in columns:
             conn.execute("ALTER TABLE orders ADD COLUMN meal_selection TEXT")
+        if "status" not in columns:
+            conn.execute("ALTER TABLE orders ADD COLUMN status TEXT")
         seed_flights = [
             ("AL100", 1, 30),
             ("AL200", 1, 24),
@@ -91,7 +94,7 @@ class DataService:
         conn = self._open_db()
         cur = conn.execute(
             """
-            SELECT orders.id, orders.confirmation_number, orders.seat_number, orders.meal_selection,
+            SELECT orders.id, orders.confirmation_number, orders.seat_number, orders.meal_selection, orders.status,
                    flights.id AS flight_id, flights.flight_number, flights.seat_start, flights.seat_end
             FROM orders
             JOIN flights ON orders.flight_id = flights.id
@@ -108,6 +111,7 @@ class DataService:
             "confirmation_number": row["confirmation_number"],
             "seat_number": row["seat_number"],
             "meal_selection": row["meal_selection"],
+            "status": row["status"],
             "flight_id": row["flight_id"],
             "flight_number": row["flight_number"],
             "seat_start": row["seat_start"],
@@ -118,7 +122,7 @@ class DataService:
         conn = self._open_db()
         rows = conn.execute(
             """
-            SELECT orders.id, orders.confirmation_number, orders.seat_number, orders.meal_selection,
+            SELECT orders.id, orders.confirmation_number, orders.seat_number, orders.meal_selection, orders.status,
                    flights.flight_number
             FROM orders
             JOIN flights ON orders.flight_id = flights.id
@@ -134,6 +138,7 @@ class DataService:
                 "confirmation_number": row["confirmation_number"],
                 "seat_number": row["seat_number"],
                 "meal_selection": row["meal_selection"],
+                "status": row["status"],
                 "flight_number": row["flight_number"],
             }
             for row in rows
@@ -150,8 +155,8 @@ class DataService:
         confirmation = self._generate_confirmation_number(conn)
         seat_number = random.randint(flight_row["seat_start"], flight_row["seat_end"])
         conn.execute(
-            "INSERT INTO orders (user_id, flight_id, confirmation_number, seat_number) VALUES (?, ?, ?, ?)",
-            (user_id, flight_row["id"], confirmation, seat_number),
+            "INSERT INTO orders (user_id, flight_id, confirmation_number, seat_number, status) VALUES (?, ?, ?, ?, ?)",
+            (user_id, flight_row["id"], confirmation, seat_number, "active"),
         )
         order_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         conn.commit()
@@ -162,6 +167,7 @@ class DataService:
             "seat_number": seat_number,
             "flight_number": flight_row["flight_number"],
             "meal_selection": None,
+            "status": "active",
         }
 
     def update_order(
@@ -174,6 +180,8 @@ class DataService:
         existing = self.get_order(order_id, user_id)
         if not existing:
             raise ValueError("Order not found")
+        if existing.get("status") == "canceled":
+            raise ValueError("Order is canceled")
         conn = self._open_db()
         seat_value = seat_number if seat_number is not None else existing["seat_number"]
         meal_value = meal_selection if meal_selection is not None else existing["meal_selection"]
@@ -192,7 +200,7 @@ class DataService:
     def cancel_order(self, user_id: int, order_id: int) -> None:
         conn = self._open_db()
         conn.execute(
-            "DELETE FROM orders WHERE user_id = ? AND id = ?",
+            "UPDATE orders SET status = 'canceled' WHERE user_id = ? AND id = ?",
             (user_id, order_id),
         )
         conn.commit()

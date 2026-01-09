@@ -51,8 +51,13 @@ class ToolManager:
             order = self.data_service.get_order(order_id, user_id)
             if not order:
                 return "Order not found."
+            if order.get("status") == "canceled":
+                return "Order is already canceled."
             self.data_service.cancel_order(user_id, order_id)
             context.context.order_id = None
+            context.context.confirmation_number = None
+            context.context.flight_number = None
+            context.context.seat_number = None
             return f"Flight {order['flight_number']} successfully cancelled."
 
         return cancel_flight
@@ -92,6 +97,8 @@ class ToolManager:
             order = self.data_service.get_order(order_id, user_id)
             if not order:
                 return "Order not found."
+            if order.get("status") == "canceled":
+                return "Order is canceled."
             if not (order["seat_start"] <= seat_number <= order["seat_end"]):
                 return (
                     f"Seat {seat_number} is outside the allowed range "
@@ -158,7 +165,7 @@ class ToolManager:
                     meal_selection=meal,
                 )
             except ValueError:
-                return "Order not found."
+                return "Order is canceled or missing."
             context.context.meal_selection = meal
             return f"Order placed for: {meal}"
 
