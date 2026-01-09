@@ -2,6 +2,7 @@ from __future__ import annotations
 import random
 import json
 import os
+import time
 import sqlite3
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
@@ -128,10 +129,29 @@ class ConversationState(BaseModel):
         
     @property
     def messages(self):
+        messages = []
+        now_ms = int(time.time() * 1000)
+        for idx, item in self.round_store.items():
+            for id, msg in enumerate(item.messages):
+                role = msg.get("role")
+                if role is None:
+                    role = "assistant"
+                content = msg.get("content")
+                messages.append(
+                    {
+                        "id": f"Session-{item.trace_id}-{id}",
+                        "content": content,
+                        "role": role,
+                        "agent": item.agent_name,
+                        "traceId": item.trace_id,
+                        "timestamp": now_ms,
+                    }
+                )
+        return messages[1:]
         msgs = []
         for ri, store in self.round_store.items():
             msgs.extend(store.messages)
-        return msgs
+        return msgs[1:]
 	
 
 		

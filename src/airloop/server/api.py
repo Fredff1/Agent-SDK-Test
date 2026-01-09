@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
+import time
 
 from airloop.agents.manager import AgentManager
 from airloop.domain.schema import InMemoryConversationStore, PersistentConversationStore
@@ -13,6 +14,7 @@ from airloop.settings import load_app_config
 from airloop.service.observility_service import LangfuseObservabilityService, NoopObservabilityService
 from airloop.domain.schema import FeedbackRequest
 from fastapi import Query
+from airloop.service.chat_service import ROLES_TO_SHOW
 
 class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
@@ -66,10 +68,33 @@ def create_app() -> FastAPI:
                 "current_agent": st.current_agent_name,
                 "rounds": st.round_counter,
                 "context": st.context,
+                "messages": st.messages,
+                "events": _build_events(st),
+                "agents": agent_mgr.list_agents(filter=ROLES_TO_SHOW),
+                "guardrails": _build_guardrails(st),
             }
             for st in states
         ]
 
     return app
+
+
+def _build_events(state):
+    events = []
+    for round_id in sorted((state.round_store or {}).keys()):
+        store = state.round_store[round_id]
+        for ev in store.events or []:
+            if isinstance(ev, dict):
+                events.append(ev)
+    return events
+
+def _build_guardrails(state):
+    guardrails = []
+    for round_id in sorted((state.round_store or {}).keys()):
+        store = state.round_store[round_id]
+        for gr in store.guardrails or []:
+            if isinstance(gr, dict):
+                guardrails.append(gr)
+    return guardrails
 
 app = create_app()

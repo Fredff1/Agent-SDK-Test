@@ -136,6 +136,7 @@ class ChatService:
                 }
 
             messages, events, next_agent_name = extract_messages_events(result)
+            messages = messages
             guardrail_checks = self.agent_mgr.guardrail_manager.pop_guardrail_checks()
             
             self.obs_service.log_round(
@@ -153,7 +154,7 @@ class ChatService:
                 input_items=state.input_items,
                 trace_id=trace_id,
                 events=events,
-                messages=messages,
+                messages=[{"role":"user","content":message}] + messages,
             )
             state.input_items = result.to_input_list()
             

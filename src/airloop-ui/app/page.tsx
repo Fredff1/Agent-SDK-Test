@@ -61,11 +61,30 @@ export default function Home() {
             id: s.conversation_id || `session-${idx}`,
             title: s.conversation_id || `Session ${idx + 1}`,
             conversationId: s.conversation_id || null,
-            messages: [],
-            events: [],
-            agents: [],
+            messages: Array.isArray(s.messages)
+              ? s.messages.map((m: any) => ({
+                  id: m.id ?? `${s.conversation_id || idx}-${Math.random()}`,
+                  content:
+                    typeof m.content === "string"
+                      ? m.content
+                      : m.content != null
+                      ? JSON.stringify(m.content)
+                      : "",
+                  role: m.role,
+                  agent: m.agent,
+                  traceId: m.traceId,
+                  timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
+                }))
+              : [],
+            events: Array.isArray(s.events)
+              ? s.events.map((e: any) => ({
+                  ...e,
+                  timestamp: e.timestamp ? new Date(e.timestamp) : new Date(),
+                }))
+              : [],
+            agents: Array.isArray(s.agents) ? s.agents : [],
             currentAgent: s.current_agent || "",
-            guardrails: [],
+            guardrails: normalizeGuardrails(s.guardrails || []),
             context: s.context || {},
             isLoading: false,
             initialized: true,
