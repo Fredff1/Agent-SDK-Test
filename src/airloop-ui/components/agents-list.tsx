@@ -16,32 +16,34 @@ export function AgentsList({ agents, currentAgent }: AgentsListProps) {
   return (
     <PanelSection
       title="Available Agents"
-      icon={<Bot className="h-4 w-4 text-blue-600" />}
+      icon={<Bot className="h-4 w-4 text-brand" />}
     >
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
         {agents.map((agent) => (
           <Card
             key={agent.name}
-            className={`bg-white border-gray-200 transition-all ${
+            className={`border border-border-subtle bg-white/80 backdrop-blur transition-colors duration-200 ${
               agent.name === currentAgent ||
               activeAgent?.handoffs.includes(agent.name)
-                ? ""
-                : "opacity-50 filter grayscale cursor-not-allowed pointer-events-none"
+                ? "hover:border-brand/40"
+                : "pointer-events-none cursor-not-allowed opacity-50 grayscale"
             } ${
-              agent.name === currentAgent ? "ring-1 ring-blue-500 shadow-md" : ""
+              agent.name === currentAgent
+                ? "border-brand/40 shadow-soft ring-1 ring-brand/30"
+                : ""
             }`}
           >
             <CardHeader className="p-3 pb-1">
-              <CardTitle className="text-sm flex items-center text-zinc-900">
+              <CardTitle className="flex items-center text-sm font-semibold text-slate-800">
                 {agent.name}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 pt-1">
-              <p className="text-xs font-light text-zinc-500">
+              <p className="text-xs text-slate-500">
                 {agent.description}
               </p>
               {agent.name === currentAgent && (
-                <Badge className="mt-2 bg-blue-600 hover:bg-blue-700 text-white">
+                <Badge className="mt-2 bg-brand text-brand-foreground">
                   Active
                 </Badge>
               )}

@@ -4,6 +4,7 @@ export interface Message {
   role: "user" | "assistant"
   agent?: string
   traceId?: string
+  rating?: number
   timestamp: Date
 }
 

@@ -23,24 +23,24 @@ export function ConversationContext({ context }: ConversationContextProps) {
   return (
     <PanelSection
       title="Conversation Context"
-      icon={<BookText className="h-4 w-4 text-blue-600" />}
+      icon={<BookText className="h-4 w-4 text-brand" />}
     >
-      <Card className="bg-gradient-to-r from-white to-gray-50 border-gray-200 shadow-sm">
+      <Card className="border-border-subtle bg-white/80 shadow-soft backdrop-blur">
         <CardContent className="p-3">
           <div className="grid grid-cols-2 gap-2">
             {filteredEntries.map(([key, value]) => (
               <div
                 key={key}
-                className="flex items-center gap-2 bg-white p-2 rounded-md border border-gray-200 shadow-sm transition-all"
+                className="flex items-center gap-2 rounded-md border border-border-subtle bg-white/90 p-2 transition-colors duration-200 hover:border-brand/30"
               >
-                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                <div className="h-2 w-2 rounded-full bg-brand"></div>
                 <div className="text-xs">
-                  <span className="text-zinc-500 font-light">{key}:</span>{" "}
+                  <span className="text-slate-500">{key}:</span>{" "}
                   <span
                     className={
                       value
-                        ? "text-zinc-900 font-light"
-                        : "text-gray-400 italic"
+                        ? "text-slate-800"
+                        : "italic text-slate-400"
                     }
                   >
                     {value || "null"}

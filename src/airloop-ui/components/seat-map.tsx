@@ -37,27 +37,27 @@ export function SeatMap({ onSeatSelect, selectedSeat }: SeatMapProps) {
         // Available = emerald, Occupied = gray, Exit Row = yellow (pastel)
         switch (status) {
             case 'occupied':
-                return 'bg-gray-300 text-gray-500 cursor-not-allowed';
+                return 'bg-slate-200 text-slate-400 cursor-not-allowed';
             case 'selected':
-                return 'bg-emerald-600 text-white cursor-pointer hover:bg-emerald-700';
+                return 'bg-brand text-brand-foreground cursor-pointer hover:opacity-90';
             case 'available':
                 return isExit
-                    ? 'bg-yellow-100 hover:bg-yellow-200 cursor-pointer border-yellow-300'
-                    : 'bg-emerald-100 hover:bg-emerald-200 cursor-pointer border-emerald-300';
+                    ? 'bg-amber-100 hover:bg-amber-200 cursor-pointer border-amber-200'
+                    : 'bg-white hover:bg-brand/10 cursor-pointer border-brand/30';
             default:
-                return 'bg-emerald-100';
+                return 'bg-white';
         }
     };
 
     const renderSeatSection = (title: string, config: typeof SEAT_LAYOUT.business, className: string) => (
         <div className={`mb-6 ${className}`}>
-            <h4 className="text-sm font-semibold mb-2 text-center">{title}</h4>
+            <h4 className="mb-2 text-center text-sm font-semibold text-slate-700">{title}</h4>
             <div className="space-y-1">
                 {config.rows.map(row => {
                     const isExitRow = EXIT_ROWS.has(row);
                     return (
                         <div key={row} className="flex items-center justify-center gap-1">
-                            <span className="w-6 text-xs text-gray-500 text-right mr-2">{row}</span>
+                            <span className="mr-2 w-6 text-right text-xs text-slate-500">{row}</span>
                             <div className="flex gap-1">
                                 {config.seatsPerRow.slice(0, Math.ceil(config.seatsPerRow.length / 2)).map(letter => {
                                     const seatNumber = `${row}${letter}`;
@@ -65,7 +65,7 @@ export function SeatMap({ onSeatSelect, selectedSeat }: SeatMapProps) {
                                     return (
                                         <button
                                             key={seatNumber}
-                                            className={`w-8 h-8 text-xs font-medium border rounded ${getSeatColor(status, isExitRow)} transition-colors`}
+                                            className={`h-8 w-8 rounded border text-xs font-medium transition-colors ${getSeatColor(status, isExitRow)}`}
                                             onClick={() => status === 'available' && onSeatSelect(seatNumber)}
                                             disabled={status === 'occupied'}
                                             title={`Seat ${seatNumber}${isExitRow ? ' (Exit Row)' : ''}${status === 'occupied' ? ' - Occupied' : ''}`}
@@ -83,7 +83,7 @@ export function SeatMap({ onSeatSelect, selectedSeat }: SeatMapProps) {
                                     return (
                                         <button
                                             key={seatNumber}
-                                            className={`w-8 h-8 text-xs font-medium border rounded ${getSeatColor(status, isExitRow)} transition-colors`}
+                                            className={`h-8 w-8 rounded border text-xs font-medium transition-colors ${getSeatColor(status, isExitRow)}`}
                                             onClick={() => status === 'available' && onSeatSelect(seatNumber)}
                                             disabled={status === 'occupied'}
                                             title={`Seat ${seatNumber}${isExitRow ? ' (Exit Row)' : ''}${status === 'occupied' ? ' - Occupied' : ''}`}
@@ -101,21 +101,21 @@ export function SeatMap({ onSeatSelect, selectedSeat }: SeatMapProps) {
     );
 
     return (
-        <Card className="w-full max-w-md mx-auto my-4 bg-blue-50">
+        <Card className="mx-auto my-4 w-full max-w-md border-border-subtle bg-white/90 shadow-soft">
             <CardContent className="p-4">
                 <div className="text-center mb-4">
-                    <h3 className="font-semibold text-lg mb-2">Select Your Seat</h3>
-                    <div className="flex justify-center gap-4 text-xs">
+                    <h3 className="mb-2 text-lg font-semibold text-slate-800">Select Your Seat</h3>
+                    <div className="flex justify-center gap-4 text-xs text-slate-600">
                         <div className="flex items-center gap-1">
-                            <div className="w-3 h-3 bg-emerald-100 border border-emerald-300 rounded"></div>
+                            <div className="h-3 w-3 rounded border border-brand/30 bg-white"></div>
                             <span>Available</span>
                         </div>
                         <div className="flex items-center gap-1">
-                            <div className="w-3 h-3 bg-gray-300 rounded"></div>
+                            <div className="h-3 w-3 rounded bg-slate-200"></div>
                             <span>Occupied</span>
                         </div>
                         <div className="flex items-center gap-1">
-                            <div className="w-3 h-3 bg-yellow-100 border border-yellow-300 rounded"></div>
+                            <div className="h-3 w-3 rounded border border-amber-200 bg-amber-100"></div>
                             <span>Exit Row</span>
                         </div>
                     </div>
@@ -128,8 +128,8 @@ export function SeatMap({ onSeatSelect, selectedSeat }: SeatMapProps) {
                 </div>
 
                 {selectedSeat && (
-                    <div className="mt-4 p-3 bg-blue-50 rounded-lg text-center">
-                        <p className="text-sm font-medium text-blue-800">
+                    <div className="mt-4 rounded-lg bg-brand/10 p-3 text-center">
+                        <p className="text-sm font-medium text-slate-800">
                             Selected: Seat {selectedSeat}
                         </p>
                     </div>
