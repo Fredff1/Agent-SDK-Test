@@ -32,7 +32,7 @@ export function StarRating({ traceId, onFeedback, showToggle = true, onClose }: 
       {toggleable && !open ? (
         <button
           type="button"
-          className="text-xs text-blue-700 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded-full border border-blue-200 shadow-sm transition-all hover:shadow"
+          className="rounded-full border border-brand/30 bg-brand/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-brand transition-colors hover:bg-brand/20"
           onClick={() => setOpen(true)}
         >
           Rate
@@ -47,7 +47,7 @@ export function StarRating({ traceId, onFeedback, showToggle = true, onClose }: 
           );
           return (
             <div key={star} className="relative">
-              <span className="text-2xl text-gray-300 select-none">★</span>
+              <span className="text-2xl text-slate-300 select-none">★</span>
               <span
                 className="absolute inset-0 overflow-hidden text-2xl text-amber-500 select-none pointer-events-none"
                 style={{ width: `${fillPercent * 100}%` }}
@@ -74,7 +74,7 @@ export function StarRating({ traceId, onFeedback, showToggle = true, onClose }: 
       </div>
       <button
         type="button"
-        className="px-3 py-1 rounded-full bg-gradient-to-r from-emerald-500 via-green-500 to-lime-400 text-white text-xs font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-60"
+        className="rounded-full bg-brand px-3 py-1 text-xs font-semibold text-brand-foreground shadow-soft transition-colors hover:opacity-90 disabled:opacity-60"
         disabled={selected === null || submitting}
         onClick={handleSubmit}
       >
@@ -83,7 +83,7 @@ export function StarRating({ traceId, onFeedback, showToggle = true, onClose }: 
           {toggleable && (
             <button
               type="button"
-              className="text-xs text-gray-600 hover:text-gray-800 bg-gray-100 px-2 py-1 rounded-full border border-gray-200 transition-all"
+              className="rounded-full border border-border-subtle bg-slate-100 px-2 py-1 text-xs text-slate-600 transition-colors hover:text-slate-800"
               onClick={() => {
                 setOpen(false);
                 onClose?.();

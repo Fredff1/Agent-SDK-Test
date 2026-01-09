@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ChevronLeft, Menu } from "lucide-react";
 import { AgentPanel } from "@/components/agent-panel";
 import { Chat } from "@/components/Chat";
 import type { Agent, AgentEvent, GuardrailCheck, Message } from "@/lib/types";
@@ -48,6 +49,7 @@ export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessionCounter, setSessionCounter] = useState(1);
+  const [isAgentPanelCollapsed, setIsAgentPanelCollapsed] = useState(false);
 
   // Load sessions from API (persistent store) first; fallback to localStorage
   useEffect(() => {
@@ -120,6 +122,29 @@ export default function Home() {
   }, [sessions, activeSessionId, sessionCounter]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? sessions[0];
+  const sessionOptions = sessions.map((session) => {
+    const userChunks = session.messages
+      .filter(
+        (message) =>
+          message.role === "user" && message.content !== "DISPLAY_SEAT_MAP"
+      )
+      .map((message) => message.content.replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+    const normalized = userChunks.join(" / ").trim();
+    const maxLength = 40;
+    const chars = Array.from(normalized);
+    const summary = chars.slice(0, maxLength).join("");
+    const subtitle = normalized
+      ? chars.length > maxLength
+        ? `${summary}...`
+        : summary
+      : "暂无摘要";
+    return {
+      id: session.id,
+      title: session.title,
+      subtitle,
+    };
+  });
 
   // Boot the conversation for new sessions only
   useEffect(() => {
@@ -258,7 +283,19 @@ export default function Home() {
     );
   };
 
-  const handleFeedback = async (traceId: string, score: number) => {
+  const handleFeedback = async (
+    messageId: string,
+    traceId: string,
+    score: number
+  ) => {
+    setSessions((prev) =>
+      prev.map((s) => ({
+        ...s,
+        messages: s.messages.map((m) =>
+          m.id === messageId ? { ...m, rating: score } : m
+        ),
+      }))
+    );
     if (!traceId) return;
     try {
       await submitFeedback(traceId, score);
@@ -276,58 +313,93 @@ export default function Home() {
     });
   };
 
+  const handleSelectSession = (sid: string) => {
+    setActiveSessionId(sid);
+    moveToFront(sid);
+  };
+
+  const handleCreateSession = () => {
+    const next = sessionCounter + 1;
+    const newSession = createSession(`Session ${next}`);
+    setSessionCounter(next);
+    setSessions((prev) => [newSession, ...prev]);
+    setActiveSessionId(newSession.id);
+  };
+
   if (!activeSession) {
-    return <main className="p-4 text-sm text-gray-500">Loading sessions...</main>;
+    return <main className="p-4 text-sm text-slate-500">Loading sessions...</main>;
   }
 
   return (
-    <main className="flex h-screen gap-2 bg-gray-100 p-2">
-      <AgentPanel
-        agents={activeSession?.agents || []}
-        currentAgent={activeSession?.currentAgent || ""}
-        events={activeSession?.events || []}
-        guardrails={activeSession?.guardrails || []}
-        context={activeSession?.context || {}}
-      />
-      <div className="flex-1 flex flex-col bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="flex items-center gap-2 p-3 border-b border-gray-200 bg-gray-50">
-          <div className="flex flex-wrap gap-2">
-            {sessions.map((s) => (
-              <button
-                key={s.id}
-                className={`px-3 py-1 rounded-full text-sm border transition-colors ${
-                  s.id === activeSessionId
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
-                }`}
-                onClick={() => {
-                  setActiveSessionId(s.id);
-                  moveToFront(s.id);
-                }}
-              >
-                {s.title}
-              </button>
-            ))}
+    <main className="h-screen overflow-hidden p-4 flex-shrink-0">
+      <div
+        className={`flex h-full flex-col lg:flex-row ${
+          isAgentPanelCollapsed ? "gap-0" : "gap-4"
+        }`}
+      >
+        <div
+          className={`flex-shrink-0 overflow-hidden transition-[width,height,opacity] duration-300 ease-in-out lg:h-full ${
+            isAgentPanelCollapsed
+              ? "h-0 opacity-0 lg:w-0"
+              : "h-[45%] opacity-100 lg:w-[42%]"
+          }`}
+        >
+          <div className="h-full w-full lg:min-w-[320px]">
+            <AgentPanel
+              agents={activeSession?.agents || []}
+              currentAgent={activeSession?.currentAgent || ""}
+              events={activeSession?.events || []}
+              guardrails={activeSession?.guardrails || []}
+              context={activeSession?.context || {}}
+              sessions={sessionOptions}
+              activeSessionId={activeSessionId}
+              onSelectSession={handleSelectSession}
+              onCreateSession={handleCreateSession}
+            />
           </div>
-          <button
-            className="ml-auto px-3 py-1 rounded-full text-sm border border-dashed border-gray-400 text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors"
-            onClick={() => {
-              const next = sessionCounter + 1;
-              const newSession = createSession(`Session ${next}`);
-              setSessionCounter(next);
-              setSessions((prev) => [newSession, ...prev]);
-              setActiveSessionId(newSession.id);
-            }}
-          >
-            + New
-          </button>
         </div>
-        <Chat
-          messages={activeSession?.messages || []}
-          onSendMessage={handleSendMessage}
-          onFeedback={handleFeedback}
-          isLoading={activeSession?.isLoading}
-        />
+        <div
+          className={`flex flex-1 flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface/85 shadow-panel backdrop-blur ${
+            isAgentPanelCollapsed
+              ? "h-full lg:mx-auto lg:max-w-[85%]"
+              : "h-[55%] lg:h-full"
+          }`}
+        >
+          <div className="flex min-h-[60px] items-center gap-3 border-b border-border-subtle/70 bg-surface-muted/80 px-4 py-3 backdrop-blur">
+            <button
+              type="button"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-border-subtle bg-white/80 text-slate-600 shadow-soft transition-colors duration-200 hover:border-brand/40 hover:text-slate-900"
+              onClick={() => setIsAgentPanelCollapsed((prev) => !prev)}
+              aria-label={
+                isAgentPanelCollapsed ? "Show agent control" : "Hide agent control"
+              }
+              aria-pressed={isAgentPanelCollapsed}
+            >
+              {isAgentPanelCollapsed ? (
+                <Menu className="h-4 w-4" />
+              ) : (
+                <ChevronLeft className="h-4 w-4" />
+              )}
+            </button>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold text-slate-800">
+                {activeSession?.title || "Session"}
+              </div>
+            </div>
+            {activeSession?.conversationId && (
+              <span className="hidden whitespace-nowrap rounded-full border border-border-subtle bg-white/80 px-3 py-1 text-xs font-medium text-slate-500 sm:inline-flex">
+                ID: {activeSession.conversationId}
+              </span>
+            )}
+          </div>
+          <Chat
+            sessionId={activeSession?.id || ""}
+            messages={activeSession?.messages || []}
+            onSendMessage={handleSendMessage}
+            onFeedback={handleFeedback}
+            isLoading={activeSession?.isLoading}
+          />
+        </div>
       </div>
     </main>
   );
