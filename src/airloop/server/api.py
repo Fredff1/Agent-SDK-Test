@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
@@ -10,6 +10,8 @@ from airloop.service.chat_service import ChatService
 from airloop.service.offline_eval_service import OfflineEvalService
 from airloop.service.conversation_eval_service import ConversationEvalService, ConversationEvalRequest
 from airloop.service.feedback_service import FeedbackService
+from airloop.service.auth_service import AuthService
+from airloop.service.data_service import DataService
 from airloop.settings import load_app_config
 from airloop.service.observility_service import LangfuseObservabilityService, NoopObservabilityService
 from airloop.domain.schema import FeedbackRequest
@@ -18,7 +20,12 @@ from airloop.service.chat_service import ROLES_TO_SHOW
 
 class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
+    user_id: Optional[int] = None
     message: str
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
 
 def create_app() -> FastAPI:
     app = FastAPI()
@@ -33,6 +40,10 @@ def create_app() -> FastAPI:
 
     cfg = load_app_config()
     agent_mgr = AgentManager(cfg.llm)
+    auth_svc = AuthService(cfg.store.path)
+    auth_svc.init_db()
+    data_svc = DataService(cfg.store.path)
+    data_svc.init_db()
     if cfg.store.kind == "sqlite":
         store = PersistentConversationStore(cfg.store.path)
     else:
@@ -45,7 +56,25 @@ def create_app() -> FastAPI:
 
     @app.post("/api/chat")
     async def chat(req: ChatRequest):
-        return await chat_svc.chat(req.conversation_id, req.message)
+        if req.user_id is None:
+            raise HTTPException(status_code=400, detail="user_id required")
+        user = auth_svc.get_user_by_id(req.user_id)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid user")
+        return await chat_svc.chat(
+            req.conversation_id,
+            req.message,
+            req.user_id,
+            user_name=user.get("username"),
+            account_number=user.get("account_number"),
+        )
+
+    @app.post("/api/login")
+    async def login(req: LoginRequest):
+        user = auth_svc.login(req.username, req.password)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        return user
 
     @app.post("/api/feedback")
     async def feedback(req: FeedbackRequest):
@@ -60,7 +89,9 @@ def create_app() -> FastAPI:
         return await convo_eval_svc.evaluate_conversations(req)
 
     @app.get("/api/sessions")
-    async def list_sessions(limit: int = 20):
+    async def list_sessions(limit: int = 20, user_id: Optional[int] = None):
+        if user_id is None:
+            raise HTTPException(status_code=400, detail="user_id required")
         states = store.list(limit=limit)
         return [
             {
@@ -74,6 +105,7 @@ def create_app() -> FastAPI:
                 "guardrails": _build_guardrails(st),
             }
             for st in states
+            if st.user_id == user_id
         ]
 
     return app

@@ -36,29 +36,58 @@ class ChatService:
         self.store = store
         self.obs_service = obs_service or NoopObservabilityService()
 
-    def _init_state(self) -> tuple[str, ConversationState]:
+    def _init_state(
+        self,
+        user_id: Optional[int],
+        user_name: Optional[str] = None,
+        account_number: Optional[str] = None,
+    ) -> tuple[str, ConversationState]:
         cid = uuid4().hex
         triage = self.agent_mgr.get_agent_by_role(AgentRole.TRIAGE)
         state = ConversationState(
             state_id=cid,
+            user_id=user_id,
             input_items=[{"role":"user","content":"A customer starts a new session, please provide your assistance."}],
             current_agent_name=triage.name,
-            context=create_initial_context(),  
+            context=create_initial_context(user_name, account_number),  
         )
         state.bound_context()
         self.store.save(cid, state)
         return cid, state
 
-    def _load_state(self, conversation_id: Optional[str]) -> tuple[str, ConversationState]:
+    def _load_state(
+        self,
+        conversation_id: Optional[str],
+        user_id: Optional[int],
+        user_name: Optional[str] = None,
+        account_number: Optional[str] = None,
+    ) -> tuple[str, ConversationState]:
         if not conversation_id:
-            return self._init_state()
+            return self._init_state(user_id, user_name, account_number)
         st = self.store.get(conversation_id)
         if st is None:
-            return self._init_state()
+            return self._init_state(user_id, user_name, account_number)
+        if user_id is not None:
+            if st.user_id is None:
+                st.user_id = user_id
+                if hasattr(st.context, "passenger_name") and user_name:
+                    st.context.passenger_name = user_name
+                if hasattr(st.context, "account_number") and account_number:
+                    st.context.account_number = account_number
+                self.store.save(conversation_id, st)
+            elif st.user_id != user_id:
+                return self._init_state(user_id, user_name, account_number)
         return conversation_id, st
     
-    async def chat(self, conversation_id: Optional[str], message: str) -> Dict[str, Any]:
-        cid, state = self._load_state(conversation_id)
+    async def chat(
+        self,
+        conversation_id: Optional[str],
+        message: str,
+        user_id: Optional[int] = None,
+        user_name: Optional[str] = None,
+        account_number: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        cid, state = self._load_state(conversation_id, user_id, user_name, account_number)
         return await self._chat_with_state(state, message, persist=True)
 
     async def chat_with_state(self, state: ConversationState, message: str, persist: bool = False) -> Dict[str, Any]:

@@ -21,14 +21,17 @@ class AirlineAgentContext(BaseModel):
     
     conversation_state: Optional[ConversationState] = None
 
-def create_initial_context() -> AirlineAgentContext:
+def create_initial_context(
+    user_name: Optional[str] = None,
+    account_number: Optional[str] = None,
+) -> AirlineAgentContext:
     """
     Factory for a new AirlineAgentContext.
     For demo: generates a fake account number.
     In production, this should be set from real user data.
     """
     ctx = AirlineAgentContext()
-    ctx.account_number = str(random.randint(10000000, 99999999))
-    ctx.passenger_name = random.choice(NAMES)
+    ctx.account_number = account_number or str(random.randint(10000000, 99999999))
+    ctx.passenger_name = user_name or random.choice(NAMES)
     ctx.available_meals = ["Chicken set", "Beef set", "Vegetarian set"]
     return ctx

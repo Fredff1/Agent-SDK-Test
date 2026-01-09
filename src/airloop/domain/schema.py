@@ -84,6 +84,7 @@ class _RoundStore(BaseModel):
 class ConversationState(BaseModel):
 
     state_id: str
+    user_id: Optional[int] = None
     input_items: List[TInputItem] = field(default_factory=list)
     current_agent_name: str = ""
     context: Any = None

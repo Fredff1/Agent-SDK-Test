@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, Menu } from "lucide-react";
 import { AgentPanel } from "@/components/agent-panel";
 import { Chat } from "@/components/Chat";
@@ -46,16 +47,40 @@ const normalizeGuardrails = (raw: any[]): GuardrailCheck[] =>
   }));
 
 export default function Home() {
+  const router = useRouter();
+  const [userId, setUserId] = useState<number | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessionCounter, setSessionCounter] = useState(1);
   const [isAgentPanelCollapsed, setIsAgentPanelCollapsed] = useState(false);
+  const [isAuthChecked, setIsAuthChecked] = useState(false);
+
+  useEffect(() => {
+    const raw = localStorage.getItem("airloop_user");
+    if (!raw) {
+      router.replace("/login");
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed?.id === "number") {
+        setUserId(parsed.id);
+        setIsAuthChecked(true);
+        return;
+      }
+    } catch {
+      // fall through
+    }
+    localStorage.removeItem("airloop_user");
+    router.replace("/login");
+  }, [router]);
 
   // Load sessions from API (persistent store) first; fallback to localStorage
   useEffect(() => {
     (async () => {
       try {
-        const apiSessions = await fetchSessions(50);
+        if (userId == null) return;
+        const apiSessions = await fetchSessions(50, userId);
         if (Array.isArray(apiSessions) && apiSessions.length > 0) {
           const restored: Session[] = apiSessions.map((s: any, idx: number) => ({
             id: s.conversation_id || `session-${idx}`,
@@ -121,7 +146,7 @@ export default function Home() {
       setActiveSessionId(first.id);
       setSessionCounter(1);
     })();
-  }, []);
+  }, [userId]);
 
   // Persist sessions to localStorage
   useEffect(() => {
@@ -179,7 +204,7 @@ export default function Home() {
     );
       let data: any = null;
       try {
-        data = await callChatAPI("", "");
+        data = await callChatAPI("", "", userId ?? undefined);
       } catch (err) {
         console.error("Failed to start conversation", err);
       }
@@ -248,7 +273,7 @@ export default function Home() {
 
     let data: any = null;
     try {
-      data = await callChatAPI(content, session.conversationId ?? "");
+      data = await callChatAPI(content, session.conversationId ?? "", userId ?? undefined);
     } catch (err) {
       console.error("Failed to send message", err);
       setSessions((prev) =>
@@ -344,6 +369,10 @@ export default function Home() {
     setSessions((prev) => [newSession, ...prev]);
     setActiveSessionId(newSession.id);
   };
+
+  if (!isAuthChecked) {
+    return <main className="p-4 text-sm text-slate-500">Checking access...</main>;
+  }
 
   if (!activeSession) {
     return <main className="p-4 text-sm text-slate-500">Loading sessions...</main>;
