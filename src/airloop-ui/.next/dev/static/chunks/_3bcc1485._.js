@@ -2013,7 +2013,7 @@ function TypewriterMessage({ content, shouldAnimate, onStream }) {
             let index = 0;
             setDisplayed("");
             let timeoutId;
-            const baseDelay = 50;
+            const baseDelay = 35;
             const sentencePause = 320;
             const clausePause = 140;
             const getDelay = {
