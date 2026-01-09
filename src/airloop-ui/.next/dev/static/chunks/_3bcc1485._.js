@@ -2013,7 +2013,7 @@ function TypewriterMessage({ content, shouldAnimate, onStream }) {
             let index = 0;
             setDisplayed("");
             let timeoutId;
-            const baseDelay = 50;
+            const baseDelay = 35;
             const sentencePause = 320;
             const clausePause = 140;
             const getDelay = {
@@ -2437,7 +2437,6 @@ if (typeof globalThis.$RefreshHelpers$ === 'object' && globalThis.$RefreshHelper
 "[project]/lib/api.ts [app-client] (ecmascript)", ((__turbopack_context__) => {
 "use strict";
 
-// Helper to call the server
 __turbopack_context__.s([
     "callChatAPI",
     ()=>callChatAPI,
@@ -2446,8 +2445,9 @@ __turbopack_context__.s([
     "submitFeedback",
     ()=>submitFeedback
 ]);
+const API_BASE_URL = "http://127.0.0.1:8000";
 async function callChatAPI(message, conversationId) {
-    const res = await fetch("/api/chat", {
+    const res = await fetch(`${API_BASE_URL}/api/chat`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -2464,7 +2464,7 @@ async function callChatAPI(message, conversationId) {
     return res.json();
 }
 async function submitFeedback(traceId, score, comment) {
-    const res = await fetch("/api/feedback", {
+    const res = await fetch(`${API_BASE_URL}/api/feedback`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -2482,7 +2482,7 @@ async function submitFeedback(traceId, score, comment) {
     return res.json();
 }
 async function fetchSessions(limit = 20) {
-    const res = await fetch(`/api/sessions?limit=${limit}`);
+    const res = await fetch(`${API_BASE_URL}/api/sessions?limit=${limit}`);
     if (!res.ok) {
         const text = await res.text();
         throw new Error(`Sessions API error: ${res.status} ${text}`);

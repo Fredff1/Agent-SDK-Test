@@ -38,7 +38,7 @@ export function TypewriterMessage({
     setDisplayed("");
 
     let timeoutId: number | undefined;
-    const baseDelay = 50;
+    const baseDelay = 35;
     const sentencePause = 320;
     const clausePause = 140;
 
