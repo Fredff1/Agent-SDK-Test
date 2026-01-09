@@ -1,6 +1,8 @@
+const API_BASE_URL = "http://127.0.0.1:8000";
+
 // Helper to call the server
 export async function callChatAPI(message: string, conversationId: string) {
-  const res = await fetch("/api/chat", {
+  const res = await fetch(`${API_BASE_URL}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ conversation_id: conversationId, message }),
@@ -15,7 +17,7 @@ export async function callChatAPI(message: string, conversationId: string) {
 }
 
 export async function submitFeedback(traceId: string, score: number, comment?: string) {
-  const res = await fetch("/api/feedback", {
+  const res = await fetch(`${API_BASE_URL}/api/feedback`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ trace_id: traceId, score, comment }),
@@ -30,7 +32,7 @@ export async function submitFeedback(traceId: string, score: number, comment?: s
 }
 
 export async function fetchSessions(limit: number = 20) {
-  const res = await fetch(`/api/sessions?limit=${limit}`);
+  const res = await fetch(`${API_BASE_URL}/api/sessions?limit=${limit}`);
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Sessions API error: ${res.status} ${text}`);
