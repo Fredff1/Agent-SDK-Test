@@ -10,12 +10,13 @@ from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 from airloop.agents.role import AgentRole
 from airloop.agents.guard import GuardrailManager
 from airloop.domain.context import AirlineAgentContext
-from airloop.tools.faq import faq_lookup_tool
+from airloop.tools.manager import ToolManager
 
 
 def get_faq_agent(
     model,
     guardrail_mgr: GuardrailManager,
+    tool_mgr: ToolManager,
 ):  
 
     faq_agent = Agent[AirlineAgentContext](
@@ -29,7 +30,7 @@ def get_faq_agent(
         1. Identify the last question asked by the customer.
         2. Use the faq lookup tool to get the answer. Do not rely on your own knowledge.
         3. Respond to the customer with the answer""",
-        tools=[faq_lookup_tool],
+        tools=[tool_mgr.faq_lookup_tool],
         input_guardrails=[guardrail_mgr.relevance_guardrail, guardrail_mgr.jailbreak_guardrail],
     )
     return faq_agent

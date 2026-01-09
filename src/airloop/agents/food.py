@@ -5,7 +5,7 @@ from agents import Agent, RunContextWrapper
 
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 
-from airloop.tools.food import order_food
+from airloop.tools.manager import ToolManager
 from airloop.agents.guard import GuardrailManager
 from airloop.domain.context import AirlineAgentContext
 
@@ -13,6 +13,7 @@ from airloop.domain.context import AirlineAgentContext
 def get_food_agent(
     model,
     guardrail_mgr: GuardrailManager,
+    tool_mgr: ToolManager,
 ):  
     def food_instructions(run_context: RunContextWrapper[AirlineAgentContext], agent: Agent[AirlineAgentContext]) -> str:
         meals = run_context.context.available_meals or ["Chicken set", "Beef set", "Vegetarian set"]
@@ -34,7 +35,7 @@ def get_food_agent(
         model=model, 
         handoff_description="A helpful agent that can answer questions about the food supplies and order foods.",
         instructions=food_instructions,
-        tools=[order_food],
+        tools=[tool_mgr.order_food],
         input_guardrails=[guardrail_mgr.jailbreak_guardrail],
     )
     return food_agent

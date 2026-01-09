@@ -7,9 +7,10 @@ from pydantic import BaseModel
 from agents import Runner
 
 from airloop.agents.manager import AgentManager
+from airloop.agents.mock_manager import MockAgentManager
 from airloop.agents.eval_agent import build_eval_agent, EvalScores
 from airloop.agents.role import AgentRole
-from airloop.domain.schema import ConversationState
+from airloop.domain.schema import ConversationState, InMemoryConversationStore
 from airloop.domain.context import AirlineAgentContext, create_initial_context
 from airloop.service.chat_service import ChatService
 from airloop.service.observility_service import ObservabilityService
@@ -45,8 +46,14 @@ class OfflineEvalService:
         self.chat_service = chat_service
         self.agent_mgr = agent_mgr
         self.obs_service = obs_service
+        self.eval_agent_mgr = MockAgentManager(agent_mgr.model, agent_mgr.run_config)
+        self.eval_chat_service = ChatService(
+            self.eval_agent_mgr,
+            InMemoryConversationStore(),
+            obs_service,
+        )
         self.eval_agent = self._build_eval_agent(app_config or None, agent_mgr)
-        self.run_config = agent_mgr.run_config
+        self.run_config = self.eval_agent_mgr.run_config
 
         # Simple built-in cases; can be extended.
         self.default_cases: List[EvalCase] = [
@@ -94,7 +101,7 @@ class OfflineEvalService:
                         setattr(ctx, k, v)
 
             history = case.history or []
-            triage = self.agent_mgr.get_agent_by_role(AgentRole.TRIAGE)
+            triage = self.eval_agent_mgr.get_agent_by_role(AgentRole.TRIAGE)
             state = ConversationState(
                 state_id=f"offline-{case.name}",
                 input_items=list(history),
@@ -102,7 +109,7 @@ class OfflineEvalService:
                 context=ctx,
             )
 
-            chat_res = await self.chat_service.chat_with_state(state, case.user_message, persist=False)
+            chat_res = await self.eval_chat_service.chat_with_state(state, case.user_message, persist=False)
             assistant_outputs = [m.get("content", "") for m in (chat_res.get("messages") or [])]
             assistant_text = "\n".join([t for t in assistant_outputs if t])
             trace_id = chat_res.get("trace_id")

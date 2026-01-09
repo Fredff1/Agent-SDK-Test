@@ -21,6 +21,7 @@ from airloop.service.chat_service import ROLES_TO_SHOW
 class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     user_id: Optional[int] = None
+    order_id: Optional[int] = None
     message: str
 
 class LoginRequest(BaseModel):
@@ -39,11 +40,11 @@ def create_app() -> FastAPI:
     )
 
     cfg = load_app_config()
-    agent_mgr = AgentManager(cfg.llm)
     auth_svc = AuthService(cfg.store.path)
     auth_svc.init_db()
     data_svc = DataService(cfg.store.path)
     data_svc.init_db()
+    agent_mgr = AgentManager(cfg.llm, data_svc)
     if cfg.store.kind == "sqlite":
         store = PersistentConversationStore(cfg.store.path)
     else:
@@ -61,12 +62,23 @@ def create_app() -> FastAPI:
         user = auth_svc.get_user_by_id(req.user_id)
         if not user:
             raise HTTPException(status_code=401, detail="Invalid user")
+        order_info = None
+        if req.order_id is not None:
+            order_info = data_svc.get_order(req.order_id, req.user_id)
+            if not order_info:
+                raise HTTPException(status_code=404, detail="Order not found")
+        if req.conversation_id is None and req.order_id is None:
+            raise HTTPException(status_code=400, detail="order_id required for new session")
         return await chat_svc.chat(
             req.conversation_id,
             req.message,
             req.user_id,
             user_name=user.get("username"),
             account_number=user.get("account_number"),
+            order_id=order_info["id"] if order_info else None,
+            confirmation_number=order_info["confirmation_number"] if order_info else None,
+            flight_number=order_info["flight_number"] if order_info else None,
+            seat_number=str(order_info["seat_number"]) if order_info else None,
         )
 
     @app.post("/api/login")
@@ -75,6 +87,25 @@ def create_app() -> FastAPI:
         if not user:
             raise HTTPException(status_code=401, detail="Invalid credentials")
         return user
+
+    @app.get("/api/orders")
+    async def list_orders(user_id: Optional[int] = None):
+        if user_id is None:
+            raise HTTPException(status_code=400, detail="user_id required")
+        if not auth_svc.get_user_by_id(user_id):
+            raise HTTPException(status_code=401, detail="Invalid user")
+        return data_svc.list_orders(user_id)
+
+    @app.post("/api/orders")
+    async def create_order(user_id: Optional[int] = None):
+        if user_id is None:
+            raise HTTPException(status_code=400, detail="user_id required")
+        if not auth_svc.get_user_by_id(user_id):
+            raise HTTPException(status_code=401, detail="Invalid user")
+        try:
+            return data_svc.create_order(user_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
     @app.post("/api/feedback")
     async def feedback(req: FeedbackRequest):
@@ -96,6 +127,7 @@ def create_app() -> FastAPI:
         return [
             {
                 "conversation_id": st.state_id,
+                "title": _ensure_session_title(st, store),
                 "current_agent": st.current_agent_name,
                 "rounds": st.round_counter,
                 "context": st.context,
@@ -128,5 +160,18 @@ def _build_guardrails(state):
             if isinstance(gr, dict):
                 guardrails.append(gr)
     return guardrails
+
+def _ensure_session_title(state, store):
+    if state.title:
+        return state.title
+    confirmation = None
+    if hasattr(state.context, "confirmation_number"):
+        confirmation = state.context.confirmation_number
+    if confirmation:
+        state.title = f"Order {confirmation}"
+    else:
+        state.title = f"Session {state.state_id[:6]}"
+    store.save(state.state_id, state)
+    return state.title
 
 app = create_app()

@@ -73,3 +73,12 @@ class AuthService:
             "username": row["username"],
             "account_number": row["account_number"],
         }
+
+    def list_users(self) -> list[dict]:
+        conn = self._open_db()
+        rows = conn.execute("SELECT id, username, account_number FROM users").fetchall()
+        conn.close()
+        return [
+            {"id": row["id"], "username": row["username"], "account_number": row["account_number"]}
+            for row in rows
+        ]

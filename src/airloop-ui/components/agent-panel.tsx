@@ -7,6 +7,7 @@ import { Guardrails } from "./guardrails";
 import { ConversationContext } from "./conversation-context";
 import { RunnerOutput } from "./runner-output";
 import { SessionSwitcher, type SessionOption } from "./session-switcher";
+import { OrderPanel } from "./order-panel";
 
 interface AgentPanelProps {
   agents: Agent[];
@@ -14,15 +15,27 @@ interface AgentPanelProps {
   events: AgentEvent[];
   guardrails: GuardrailCheck[];
   sessions: SessionOption[];
+  orders: {
+    id: number;
+    confirmation_number: string;
+    flight_number: string;
+    seat_number: number;
+    meal_selection?: string | null;
+  }[];
+  ordersLoading: boolean;
+  ordersError?: string;
   activeSessionId: string | null;
   onSelectSession: (sessionId: string) => void;
   onCreateSession: () => void;
+  onCreateOrder: () => void;
+  onRefreshOrders: () => void;
   context: {
     passenger_name?: string;
     confirmation_number?: string;
     seat_number?: string;
     flight_number?: string;
     account_number?: string;
+    order_id?: number;
   };
 }
 
@@ -32,9 +45,14 @@ export function AgentPanel({
   events,
   guardrails,
   sessions,
+  orders,
+  ordersLoading,
+  ordersError,
   activeSessionId,
   onSelectSession,
   onCreateSession,
+  onCreateOrder,
+  onRefreshOrders,
   context,
 }: AgentPanelProps) {
   const activeAgent = agents.find((a) => a.name === currentAgent);
@@ -58,6 +76,13 @@ export function AgentPanel({
           activeSessionId={activeSessionId}
           onSelect={onSelectSession}
           onCreate={onCreateSession}
+        />
+        <OrderPanel
+          orders={orders}
+          isLoading={ordersLoading}
+          error={ordersError}
+          onCreateOrder={onCreateOrder}
+          onRefresh={onRefreshOrders}
         />
         <AgentsList agents={agents} currentAgent={currentAgent} />
         <Guardrails

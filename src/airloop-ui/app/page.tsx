@@ -6,12 +6,19 @@ import { ChevronLeft, Menu } from "lucide-react";
 import { AgentPanel } from "@/components/agent-panel";
 import { Chat } from "@/components/Chat";
 import type { Agent, AgentEvent, GuardrailCheck, Message } from "@/lib/types";
-import { callChatAPI, submitFeedback, fetchSessions } from "@/lib/api";
+import {
+  callChatAPI,
+  submitFeedback,
+  fetchSessions,
+  fetchOrders,
+  createOrder,
+} from "@/lib/api";
 
 type Session = {
   id: string;
   title: string;
   conversationId: string | null;
+  orderId: number | null;
   messages: Message[];
   events: AgentEvent[];
   agents: Agent[];
@@ -22,16 +29,30 @@ type Session = {
   initialized: boolean;
 };
 
-const createSession = (title: string): Session => ({
+type Order = {
+  id: number;
+  confirmation_number: string;
+  flight_number: string;
+  seat_number: number;
+  meal_selection?: string | null;
+};
+
+const createSession = (title: string, order: Order): Session => ({
   id: Math.random().toString(36).slice(2),
   title,
   conversationId: null,
+  orderId: order.id,
   messages: [],
   events: [],
   agents: [],
   currentAgent: "",
   guardrails: [],
-  context: {},
+  context: {
+    order_id: order.id,
+    confirmation_number: order.confirmation_number,
+    flight_number: order.flight_number,
+    seat_number: String(order.seat_number),
+  },
   isLoading: false,
   initialized: false,
 });
@@ -54,6 +75,10 @@ export default function Home() {
   const [sessionCounter, setSessionCounter] = useState(1);
   const [isAgentPanelCollapsed, setIsAgentPanelCollapsed] = useState(false);
   const [isAuthChecked, setIsAuthChecked] = useState(false);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isOrdersLoading, setIsOrdersLoading] = useState(false);
+  const [orderError, setOrderError] = useState("");
+  const [isOrderPickerOpen, setIsOrderPickerOpen] = useState(false);
 
   useEffect(() => {
     const raw = localStorage.getItem("airloop_user");
@@ -75,6 +100,25 @@ export default function Home() {
     router.replace("/login");
   }, [router]);
 
+  const loadOrders = async (uid: number) => {
+    setIsOrdersLoading(true);
+    setOrderError("");
+    try {
+      const data = await fetchOrders(uid);
+      setOrders(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to load orders", err);
+      setOrderError("Failed to load orders.");
+    } finally {
+      setIsOrdersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (userId == null) return;
+    loadOrders(userId);
+  }, [userId]);
+
   // Load sessions from API (persistent store) first; fallback to localStorage
   useEffect(() => {
     (async () => {
@@ -84,8 +128,9 @@ export default function Home() {
         if (Array.isArray(apiSessions) && apiSessions.length > 0) {
           const restored: Session[] = apiSessions.map((s: any, idx: number) => ({
             id: s.conversation_id || `session-${idx}`,
-            title: s.conversation_id || `Session ${idx + 1}`,
+            title: s.title || `Session ${idx + 1}`,
             conversationId: s.conversation_id || null,
+            orderId: s.context?.order_id ?? null,
             messages: Array.isArray(s.messages)
               ? s.messages.map((m: any) => ({
                   id: m.id ?? `${s.conversation_id || idx}-${Math.random()}`,
@@ -141,10 +186,9 @@ export default function Home() {
       } catch (err) {
         console.error("Failed to load sessions from storage", err);
       }
-      const first = createSession("Session 1");
-      setSessions([first]);
-      setActiveSessionId(first.id);
-      setSessionCounter(1);
+      setSessions([]);
+      setActiveSessionId(null);
+      setSessionCounter(0);
     })();
   }, [userId]);
 
@@ -195,6 +239,7 @@ export default function Home() {
     if (!activeSessionId) return;
     const session = sessions.find((s) => s.id === activeSessionId);
     if (!session || session.initialized || session.isLoading) return;
+    if (userId == null || session.orderId == null) return;
 
     const bootSession = async (sessionId: string) => {
     setSessions((prev) =>
@@ -204,7 +249,7 @@ export default function Home() {
     );
       let data: any = null;
       try {
-        data = await callChatAPI("", "", userId ?? undefined);
+        data = await callChatAPI("", "", userId, session.orderId ?? undefined);
       } catch (err) {
         console.error("Failed to start conversation", err);
       }
@@ -222,6 +267,7 @@ export default function Home() {
             ? {
                 ...s,
                 conversationId: data.conversation_id,
+                title: data.session_title ?? s.title,
                 currentAgent: data.current_agent,
                 context: data.context,
                 events: (data.events || []).map((e: any) => ({
@@ -249,7 +295,7 @@ export default function Home() {
     };
 
     bootSession(activeSessionId);
-  }, [activeSessionId, sessions]);
+  }, [activeSessionId, sessions, userId]);
 
   // Send a user message
   const handleSendMessage = async (content: string) => {
@@ -273,7 +319,12 @@ export default function Home() {
 
     let data: any = null;
     try {
-      data = await callChatAPI(content, session.conversationId ?? "", userId ?? undefined);
+      data = await callChatAPI(
+        content,
+        session.conversationId ?? "",
+        userId ?? undefined,
+        session.orderId ?? undefined
+      );
     } catch (err) {
       console.error("Failed to send message", err);
       setSessions((prev) =>
@@ -315,6 +366,7 @@ export default function Home() {
         return {
           ...s,
           conversationId: s.conversationId || data.conversation_id,
+          title: data.session_title ?? s.title,
           currentAgent: data.current_agent,
           context: data.context,
           events: [...s.events, ...stampedEvents],
@@ -363,19 +415,35 @@ export default function Home() {
   };
 
   const handleCreateSession = () => {
+    if (orders.length === 0) {
+      setOrderError("No orders available. Create an order first.");
+      return;
+    }
+    setIsOrderPickerOpen(true);
+  };
+
+  const handleCreateOrder = async () => {
+    if (userId == null) return;
+    try {
+      await createOrder(userId);
+      await loadOrders(userId);
+    } catch (err) {
+      console.error("Failed to create order", err);
+      setOrderError("Failed to create order.");
+    }
+  };
+
+  const handleSelectOrderForSession = (order: Order) => {
     const next = sessionCounter + 1;
-    const newSession = createSession(`Session ${next}`);
+    const newSession = createSession(`Order ${order.confirmation_number}`, order);
     setSessionCounter(next);
     setSessions((prev) => [newSession, ...prev]);
     setActiveSessionId(newSession.id);
+    setIsOrderPickerOpen(false);
   };
 
   if (!isAuthChecked) {
     return <main className="p-4 text-sm text-slate-500">Checking access...</main>;
-  }
-
-  if (!activeSession) {
-    return <main className="p-4 text-sm text-slate-500">Loading sessions...</main>;
   }
 
   return (
@@ -400,9 +468,14 @@ export default function Home() {
               guardrails={activeSession?.guardrails || []}
               context={activeSession?.context || {}}
               sessions={sessionOptions}
+              orders={orders}
+              ordersLoading={isOrdersLoading}
+              ordersError={orderError}
               activeSessionId={activeSessionId}
               onSelectSession={handleSelectSession}
               onCreateSession={handleCreateSession}
+              onCreateOrder={handleCreateOrder}
+              onRefreshOrders={() => (userId != null ? loadOrders(userId) : null)}
             />
           </div>
         </div>
@@ -440,15 +513,75 @@ export default function Home() {
               </span>
             )}
           </div>
-          <Chat
-            sessionId={activeSession?.id || ""}
-            messages={activeSession?.messages || []}
-            onSendMessage={handleSendMessage}
-            onFeedback={handleFeedback}
-            isLoading={activeSession?.isLoading}
-          />
+          {activeSession ? (
+            <Chat
+              sessionId={activeSession?.id || ""}
+              messages={activeSession?.messages || []}
+              onSendMessage={handleSendMessage}
+              onFeedback={handleFeedback}
+              isLoading={activeSession?.isLoading}
+            />
+          ) : (
+            <div className="flex flex-1 items-center justify-center px-6">
+              <div className="max-w-sm rounded-2xl border border-border-subtle bg-white/80 p-6 text-center shadow-soft">
+                <div className="text-sm font-semibold text-slate-800">
+                  No active session
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Create a session by selecting one of your existing orders.
+                </p>
+                <button
+                  type="button"
+                  className="mt-4 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-soft"
+                  onClick={handleCreateSession}
+                >
+                  Create session
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+      {isOrderPickerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-border-subtle bg-white p-5 shadow-panel">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-800">
+                Select an order
+              </div>
+              <button
+                type="button"
+                className="text-xs text-slate-500 hover:text-slate-700"
+                onClick={() => setIsOrderPickerOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="mt-4 space-y-2">
+              {orders.map((order) => (
+                <button
+                  key={order.id}
+                  type="button"
+                  className="w-full rounded-xl border border-border-subtle bg-white/90 px-3 py-2 text-left text-xs text-slate-700 transition-colors duration-150 hover:border-brand/40"
+                  onClick={() => handleSelectOrderForSession(order)}
+                >
+                  <div className="font-semibold text-slate-800">
+                    {order.confirmation_number}
+                  </div>
+                  <div className="mt-1 text-[11px] text-slate-500">
+                    Flight {order.flight_number} · Seat {order.seat_number}
+                  </div>
+                </button>
+              ))}
+              {orders.length === 0 && (
+                <div className="text-xs text-slate-500">
+                  No orders available. Create one first.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

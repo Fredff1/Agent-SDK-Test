@@ -4,7 +4,8 @@ const API_BASE_URL = "http://127.0.0.1:8000";
 export async function callChatAPI(
   message: string,
   conversationId: string,
-  userId?: number
+  userId?: number,
+  orderId?: number
 ) {
   const res = await fetch(`${API_BASE_URL}/api/chat`, {
     method: "POST",
@@ -13,6 +14,7 @@ export async function callChatAPI(
       conversation_id: conversationId,
       message,
       user_id: userId,
+      order_id: orderId,
     }),
   });
 
@@ -48,6 +50,28 @@ export async function fetchSessions(limit: number = 20, userId?: number) {
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Sessions API error: ${res.status} ${text}`);
+  }
+  return res.json();
+}
+
+export async function fetchOrders(userId: number) {
+  const params = new URLSearchParams({ user_id: String(userId) });
+  const res = await fetch(`${API_BASE_URL}/api/orders?${params.toString()}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Orders API error: ${res.status} ${text}`);
+  }
+  return res.json();
+}
+
+export async function createOrder(userId: number) {
+  const params = new URLSearchParams({ user_id: String(userId) });
+  const res = await fetch(`${API_BASE_URL}/api/orders?${params.toString()}`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Create order error: ${res.status} ${text}`);
   }
   return res.json();
 }

@@ -36,20 +36,45 @@ class ChatService:
         self.store = store
         self.obs_service = obs_service or NoopObservabilityService()
 
+    def _build_session_title(
+        self,
+        session_id: str,
+        confirmation_number: Optional[str] = None,
+        order_id: Optional[int] = None,
+    ) -> str:
+        if confirmation_number:
+            return f"Order {confirmation_number}"
+        if order_id is not None:
+            return f"Order {order_id}"
+        return f"Session {session_id[:6]}"
+
     def _init_state(
         self,
         user_id: Optional[int],
         user_name: Optional[str] = None,
         account_number: Optional[str] = None,
+        order_id: Optional[int] = None,
+        confirmation_number: Optional[str] = None,
+        flight_number: Optional[str] = None,
+        seat_number: Optional[str] = None,
     ) -> tuple[str, ConversationState]:
         cid = uuid4().hex
         triage = self.agent_mgr.get_agent_by_role(AgentRole.TRIAGE)
         state = ConversationState(
             state_id=cid,
+            title=self._build_session_title(cid, confirmation_number, order_id),
             user_id=user_id,
             input_items=[{"role":"user","content":"A customer starts a new session, please provide your assistance."}],
             current_agent_name=triage.name,
-            context=create_initial_context(user_name, account_number),  
+            context=create_initial_context(
+                user_name,
+                account_number,
+                user_id,
+                order_id=order_id,
+                confirmation_number=confirmation_number,
+                flight_number=flight_number,
+                seat_number=seat_number,
+            ),
         )
         state.bound_context()
         self.store.save(cid, state)
@@ -61,22 +86,75 @@ class ChatService:
         user_id: Optional[int],
         user_name: Optional[str] = None,
         account_number: Optional[str] = None,
+        order_id: Optional[int] = None,
+        confirmation_number: Optional[str] = None,
+        flight_number: Optional[str] = None,
+        seat_number: Optional[str] = None,
     ) -> tuple[str, ConversationState]:
         if not conversation_id:
-            return self._init_state(user_id, user_name, account_number)
+            return self._init_state(
+                user_id,
+                user_name,
+                account_number,
+                order_id,
+                confirmation_number,
+                flight_number,
+                seat_number,
+            )
         st = self.store.get(conversation_id)
         if st is None:
-            return self._init_state(user_id, user_name, account_number)
+            return self._init_state(
+                user_id,
+                user_name,
+                account_number,
+                order_id,
+                confirmation_number,
+                flight_number,
+                seat_number,
+            )
         if user_id is not None:
             if st.user_id is None:
                 st.user_id = user_id
+                if hasattr(st.context, "user_id"):
+                    st.context.user_id = user_id
+                if hasattr(st.context, "order_id") and order_id:
+                    st.context.order_id = order_id
+                if hasattr(st.context, "confirmation_number") and confirmation_number:
+                    st.context.confirmation_number = confirmation_number
+                if hasattr(st.context, "flight_number") and flight_number:
+                    st.context.flight_number = flight_number
+                if hasattr(st.context, "seat_number") and seat_number:
+                    st.context.seat_number = seat_number
                 if hasattr(st.context, "passenger_name") and user_name:
                     st.context.passenger_name = user_name
                 if hasattr(st.context, "account_number") and account_number:
                     st.context.account_number = account_number
                 self.store.save(conversation_id, st)
             elif st.user_id != user_id:
-                return self._init_state(user_id, user_name, account_number)
+                return self._init_state(
+                    user_id,
+                    user_name,
+                    account_number,
+                    order_id,
+                    confirmation_number,
+                    flight_number,
+                    seat_number,
+                )
+        if st.title is None:
+            confirmation = confirmation_number
+            if not confirmation and hasattr(st.context, "confirmation_number"):
+                confirmation = st.context.confirmation_number
+            st.title = self._build_session_title(st.state_id, confirmation, order_id)
+            self.store.save(conversation_id, st)
+        if order_id and hasattr(st.context, "order_id") and st.context.order_id is None:
+            st.context.order_id = order_id
+            if hasattr(st.context, "confirmation_number") and confirmation_number:
+                st.context.confirmation_number = confirmation_number
+            if hasattr(st.context, "flight_number") and flight_number:
+                st.context.flight_number = flight_number
+                if hasattr(st.context, "seat_number") and seat_number:
+                    st.context.seat_number = seat_number
+            self.store.save(conversation_id, st)
         return conversation_id, st
     
     async def chat(
@@ -86,8 +164,21 @@ class ChatService:
         user_id: Optional[int] = None,
         user_name: Optional[str] = None,
         account_number: Optional[str] = None,
+        order_id: Optional[int] = None,
+        confirmation_number: Optional[str] = None,
+        flight_number: Optional[str] = None,
+        seat_number: Optional[str] = None,
     ) -> Dict[str, Any]:
-        cid, state = self._load_state(conversation_id, user_id, user_name, account_number)
+        cid, state = self._load_state(
+            conversation_id,
+            user_id,
+            user_name,
+            account_number,
+            order_id,
+            confirmation_number,
+            flight_number,
+            seat_number,
+        )
         return await self._chat_with_state(state, message, persist=True)
 
     async def chat_with_state(self, state: ConversationState, message: str, persist: bool = False) -> Dict[str, Any]:
@@ -130,6 +221,7 @@ class ChatService:
                     self.store.save(cid, state)
                 return {
                     "conversation_id": cid,
+                    "session_title": state.title,
                     "current_agent": agent.name,
                     "messages": [{"content": refusal, "agent": agent.name}],
                     "events": [],
@@ -155,6 +247,7 @@ class ChatService:
                     self.store.save(cid, state)
                 return {
                     "conversation_id": cid,
+                    "session_title": state.title,
                     "current_agent": state.current_agent_name,
                     "messages": [{"content": error_msg, "agent": agent.name}],
                     "events": [],
@@ -195,6 +288,7 @@ class ChatService:
         
         return {
             "conversation_id": cid,
+            "session_title": state.title,
             "current_agent": state.current_agent_name,
             "messages": messages,
             "events": events,

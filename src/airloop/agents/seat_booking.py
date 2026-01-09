@@ -19,7 +19,7 @@ from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 from airloop.agents.role import AgentRole
 from airloop.agents.guard import GuardrailManager
 from airloop.domain.context import AirlineAgentContext
-from airloop.tools.seat import update_seat, display_seat_map
+from airloop.tools.manager import ToolManager
 
 
 
@@ -46,13 +46,18 @@ async def on_seat_booking_handoff(context: RunContextWrapper[AirlineAgentContext
     # In production, these should be set from real or simulated user data
     #======================================================================================
 
-    """Set a random flight number when handed off to the seat booking agent."""
-    context.context.flight_number = f"FLT-{random.randint(100, 999)}"
-    context.context.confirmation_number = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    """Ensure flight and confirmation numbers exist for seat booking."""
+    if context.context.flight_number is None:
+        context.context.flight_number = f"AL{random.randint(100, 999)}"
+    if context.context.confirmation_number is None:
+        context.context.confirmation_number = "".join(
+            random.choices(string.ascii_uppercase + string.digits, k=6)
+        )
     
 def get_seat_booking_agent(
     model,
     guardrail_mgr: GuardrailManager,
+    tool_mgr: ToolManager,
 ):
     seat_booking_agent = Agent[AirlineAgentContext](
         name="Seat Booking Agent",
@@ -60,7 +65,7 @@ def get_seat_booking_agent(
         
         handoff_description="A helpful agent that can help book or update a seat on a flight.",
         instructions=seat_booking_instructions,
-        tools=[update_seat, display_seat_map],
+        tools=[tool_mgr.update_seat, tool_mgr.display_seat_map],
         input_guardrails=[guardrail_mgr.jailbreak_guardrail],
     )
     return seat_booking_agent

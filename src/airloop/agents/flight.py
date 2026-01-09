@@ -13,7 +13,7 @@ from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 from airloop.agents.role import AgentRole
 from airloop.agents.guard import GuardrailManager
 from airloop.domain.context import AirlineAgentContext
-from airloop.tools.flight import flight_status_tool, cancel_flight
+from airloop.tools.manager import ToolManager
 
 
 def flight_status_instructions(
@@ -64,6 +64,7 @@ async def on_cancellation_handoff(
 def get_flight_status_agent(
     model,
     guardrail_mgr: GuardrailManager,
+    tool_mgr: ToolManager,
 ):
 
     flight_status_agent = Agent[AirlineAgentContext](
@@ -73,7 +74,7 @@ def get_flight_status_agent(
         
         handoff_description="An agent to provide flight status information.",
         instructions=flight_status_instructions,
-        tools=[flight_status_tool],
+        tools=[tool_mgr.flight_status_tool],
         input_guardrails=[guardrail_mgr.jailbreak_guardrail],
     )
     return flight_status_agent
@@ -81,6 +82,7 @@ def get_flight_status_agent(
 def get_flight_cancel_agent(
     model,
     guardrail_mgr: GuardrailManager,
+    tool_mgr: ToolManager,
 ):
     cancellation_agent = Agent[AirlineAgentContext](
         name="Cancellation Agent",
@@ -88,7 +90,7 @@ def get_flight_cancel_agent(
         
         handoff_description="An agent to cancel flights.",
         instructions=cancellation_instructions,
-        tools=[cancel_flight],
+        tools=[tool_mgr.cancel_flight],
         input_guardrails=[guardrail_mgr.jailbreak_guardrail],
     )
     return cancellation_agent

@@ -19,6 +19,8 @@ from airloop.agents.flight import get_flight_status_agent, get_flight_cancel_age
 from airloop.agents.seat_booking import get_seat_booking_agent, on_seat_booking_handoff
 from airloop.agents.triage import get_triage_agent
 from airloop.agents.food import get_food_agent
+from airloop.tools.manager import ToolManager
+from airloop.service.data_service import DataService
 from airloop.provider.qwen import QwenModelProvider, build_qwen3_run_config
 from airloop.settings import UserConfig
 from pydantic import BaseModel
@@ -82,10 +84,12 @@ class _AgentStore:
 class AgentManager:
     def __init__(
         self,
-        config: UserConfig
+        config: UserConfig,
+        data_service: DataService,
     ):
         set_tracing_disabled(True)
         self.config = config
+        self.data_service = data_service
         self.agents: Dict[AgentRole, Agent] = dict()
         self._storage: Dict[str, _AgentStore] = dict()
         self.client = AsyncOpenAI(
@@ -122,11 +126,12 @@ class AgentManager:
         self.add_agent(AgentRole.GUARD_RELEVANCE, get_relevance_guardrail_agent(self.model))
         
         self.guardrail_manager = GuardrailManager(self.agents, run_config=self.run_config)
-        self.add_agent(AgentRole.SEAT_BOOKING, get_seat_booking_agent(self.model, self.guardrail_manager))
-        self.add_agent(AgentRole.FLIGHT_STATUS, get_flight_status_agent(self.model, self.guardrail_manager))
-        self.add_agent(AgentRole.FLIGHT_CANCEL, get_flight_cancel_agent(self.model, self.guardrail_manager))
-        self.add_agent(AgentRole.FAQ, get_faq_agent(self.model, self.guardrail_manager))
-        self.add_agent(AgentRole.FOOD, get_food_agent(self.model, self.guardrail_manager))
+        tool_mgr = ToolManager(self.data_service)
+        self.add_agent(AgentRole.SEAT_BOOKING, get_seat_booking_agent(self.model, self.guardrail_manager, tool_mgr))
+        self.add_agent(AgentRole.FLIGHT_STATUS, get_flight_status_agent(self.model, self.guardrail_manager, tool_mgr))
+        self.add_agent(AgentRole.FLIGHT_CANCEL, get_flight_cancel_agent(self.model, self.guardrail_manager, tool_mgr))
+        self.add_agent(AgentRole.FAQ, get_faq_agent(self.model, self.guardrail_manager, tool_mgr))
+        self.add_agent(AgentRole.FOOD, get_food_agent(self.model, self.guardrail_manager, tool_mgr))
 
         handoffs = self._build_handoff()
         self.add_agent(AgentRole.TRIAGE, get_triage_agent(model=self.model, guardrail_mgr=self.guardrail_manager, handoffs=handoffs))
